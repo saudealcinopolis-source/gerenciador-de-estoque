@@ -73,7 +73,7 @@ Senha: admin123
 
 ## 📂 Estrutura do Projeto
 
-gerenciador-de-estoque/
+```gerenciador-de-estoque/
 │
 ├── 📁 database/ # Arquivos do banco de dados SQLite (Ignorado pelo Git)
 │ └── estoque.db
@@ -98,7 +98,7 @@ gerenciador-de-estoque/
 ├── .gitignore # Arquivos ignorados pelo controle de versão
 ├── 📄 package.json # Dependências e scripts do Node.js
 ├── 📄 server.js # Servidor Backend e rotas da API
-└── 📄 README.md # Este arquivo
+└── 📄 README.md # Este arquivo ```
 
 
 ## 💡 Dicas de Uso

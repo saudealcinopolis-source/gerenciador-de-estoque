@@ -1,0 +1,14 @@
+# Dependências do Node
+node_modules/
+
+# Banco de dados local (não suba dados reais para o GitHub)
+*.db
+*.sqlite
+
+# Backups locais (já que usaremos o Google Drive para isso)
+backups/
+
+# Arquivos de ambiente e sistema
+.env
+.DS_Store
+Thumbs.db

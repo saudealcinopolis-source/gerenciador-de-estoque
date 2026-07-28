@@ -1,0 +1,9 @@
+{
+  "automatico": true,
+  "frequencia": "diario",
+  "horario": "12:40",
+  "reter": 4,
+  "inteligente": true,
+  "ultimoBackup": "2026-07-27T17:19:29.137Z",
+  "ultimoHash": "d1d577345e8e5e47859c00f785618eac"
+}

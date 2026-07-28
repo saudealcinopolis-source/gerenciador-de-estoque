@@ -73,7 +73,8 @@ Senha: admin123
 
 ## 📂 Estrutura do Projeto
 
-```gerenciador-de-estoque/
+```
+gerenciador-de-estoque/
 │
 ├── 📁 database/ # Arquivos do banco de dados SQLite (Ignorado pelo Git)
 │ └── estoque.db

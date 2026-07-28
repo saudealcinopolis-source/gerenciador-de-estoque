@@ -59,9 +59,11 @@ cd gerenciador-de-estoque
    npm install
 
 3. **Inicie o servidor**
+    ```bash
    npm start
 
 4. **Acesse o sistema**
+    ```bash
 Abra seu navegador e vá para: http://localhost:3000
 
 ## 🔑 Acesso Inicial
@@ -72,19 +74,32 @@ Senha: admin123
 ## 📂 Estrutura do Projeto
 
 gerenciador-de-estoque/
-├── database/             # Arquivos do banco de dados SQLite (Ignorado pelo Git)
-├── backups/              # Cópias de segurança locais (Ignorado pelo Git)
-├── public/               # Frontend do sistema
-│   ├── assets/           # Imagens e ícones (favicon, logo)
-│   ├── css/              # Estilos (styles.css)
-│   ├── js/               # Lógica do frontend (app.js)
-│   ├── index.html        # Página principal
-│   ├── manifest.json     # Configuração do PWA
-│   └── sw.js             # Service Worker (Funcionalidade Offline)
-├── .gitignore            # Arquivos ignorados pelo controle de versão
-├── package.json          # Dependências e scripts do Node.js
-├── server.js             # Servidor Backend e rotas da API
-└── README.md             # Este arquivo
+│
+├── 📁 database/ # Arquivos do banco de dados SQLite (Ignorado pelo Git)
+│ └── estoque.db
+│
+├── 📁 backups/ # Cópias de segurança locais (Ignorado pelo Git)
+│ └── backup_YYYY-MM-DD.db
+│
+├── public/ # Frontend do sistema
+│ ├── 📁 assets/ # Imagens e ícones (favicon, logo)
+│ │ └── logo.ico
+│ │
+│ ├── 📁 css/ # Estilos
+│ │ └── styles.css
+│ │
+│ ├── 📁 js/ # Lógica do frontend
+│ │ ── app.js
+│ │
+│ ├── 📄 index.html # Página principal
+│ ├── 📄 manifest.json # Configuração do PWA
+│ └── 📄 sw.js # Service Worker (Funcionalidade Offline)
+│
+├── .gitignore # Arquivos ignorados pelo controle de versão
+├── 📄 package.json # Dependências e scripts do Node.js
+├── 📄 server.js # Servidor Backend e rotas da API
+└── 📄 README.md # Este arquivo
+
 
 ## 💡 Dicas de Uso
 

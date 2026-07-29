@@ -4,17 +4,16 @@
   "description": "Sistema de Gerenciamento de Estoque",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "better-sqlite3": "^9.0.0",
-    "jsonwebtoken": "^9.0.0",
     "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "sql.js": "^1.8.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "20.x"
   }
 }

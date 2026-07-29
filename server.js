@@ -10,8 +10,8 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'sistema-estoque-secret-key-2024';
-const DB_PATH = './database/estoque.db';
-const BACKUP_CONFIG_PATH = './database/backup-config.json';
+const DB_PATH = path.join(__dirname, 'database', 'estoque.db');
+const BACKUP_CONFIG_PATH = path.join(__dirname, 'database', 'backup-config.json');
 
 app.use(cors());
 app.use(express.json());
@@ -898,10 +898,10 @@ app.use((err, req, res, next) => {
 initDB().then(() => {
   if (backupConfig.automatico) iniciarBackupAutomatico();
   
-  app.listen(PORT, () => {
-    console.log(`\n🚀 Sistema rodando em http://localhost:${PORT}`);
-    console.log(`👤 Login: admin / admin123\n`);
-  });
+  app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`📦 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+});
 }).catch(err => {
   console.error('❌ Erro ao inicializar:', err);
   process.exit(1);

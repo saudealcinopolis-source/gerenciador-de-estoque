@@ -704,3 +704,187 @@ tr:hover { background: var(--bg); }
     box-shadow: none !important;
   }
 }
+
+/* ============ RESPONSIVO MOBILE & PWA ============ */
+
+/* Banner Offline */
+#offlineBanner {
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+/* Botão Menu Mobile */
+.menu-toggle {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 1001;
+  background: var(--primary, #4f46e5);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 999;
+}
+.sidebar-overlay.active { display: block; }
+
+/* Telas menores que 768px (Celulares e Tablets) */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: -280px;
+    width: 280px;
+    height: 100vh;
+    transition: left 0.3s ease;
+    z-index: 1000;
+  }
+  .sidebar.open { left: 0; }
+  
+  .main-content {
+    margin-left: 0 !important;
+    padding: 16px !important;
+    padding-top: 70px !important; /* Espaço para o botão menu */
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+  }
+  
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .modal {
+    width: 95% !important;
+    max-width: 95% !important;
+    margin: 16px !important;
+  }
+
+  .form-control {
+    font-size: 16px !important; /* Evita zoom no iPhone */
+    padding: 12px !important;
+  }
+
+  .btn {
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+  }
+
+  /* Tabelas com scroll horizontal no mobile */
+  .table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  table {
+    min-width: 600px !important;
+  }
+}
+
+/* Telas muito pequenas */
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Campo de senha com botão de olho */
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-wrapper .form-control {
+  padding-right: 45px !important;
+}
+
+.toggle-password-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  color: #64748b;
+}
+
+.toggle-password-btn:hover {
+  background: rgba(100, 116, 139, 0.1);
+  color: #334155;
+}
+
+#eyeIcon {
+  width: 20px;
+  height: 20px;
+  display: block;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .toggle-password-btn {
+    right: 8px;
+    padding: 8px;
+  }
+  
+  #eyeIcon {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* ============ TELA DE LOGIN - TEMA CORRETO ============ */
+
+#loginScreen .form-group label {
+  color: #374151 !important; /* Cinza escuro - visível no fundo claro */
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: block;
+  font-size: 14px;
+}
+
+#loginScreen .form-control {
+  background-color: #f3f4f6 !important; /* Cinza bem claro */
+  color: #1f2937 !important; /* Texto escuro */
+  border: 1px solid #d1d5db !important;
+  font-size: 16px;
+}
+
+#loginScreen .form-control::placeholder {
+  color: #9ca3af !important;
+}
+
+#loginScreen .form-control:focus {
+  background-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+  outline: none;
+}
+
+/* Ajuste para tema escuro (se o body tiver classe dark) */
+body.dark #loginScreen .form-group label {
+  color: #e5e7eb !important; /* Texto claro no tema escuro */
+}
+
+body.dark #loginScreen .form-control {
+  background-color: #1f2937 !important;
+  color: #f9fafb !important;
+  border-color: #374151 !important;
+}

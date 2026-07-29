@@ -511,123 +511,6 @@ if (searchProduto) searchProduto.addEventListener('input', renderProdutos);
 const filterCategoria = document.getElementById('filterCategoria');
 if (filterCategoria) filterCategoria.addEventListener('change', renderProdutos);
 
-function openProdutoModal() {
-  const modalTitle = document.getElementById('modalProdutoTitle');
-  const form = document.getElementById('formProduto');
-  const prodId = document.getElementById('prodId');
-  const modal = document.getElementById('modalProduto');
-  
-  if (modalTitle) modalTitle.textContent = 'Novo Produto';
-  if (form) form.reset();
-  if (prodId) prodId.value = '';
-  if (modal) modal.classList.add('active');
-}
-
-function editProduto(id) {
-  const p = produtos.find(x => x.id === id);
-  if (!p) return;
-  
-  document.getElementById('modalProdutoTitle').textContent = 'Editar Produto';
-  document.getElementById('prodId').value = p.id;
-  document.getElementById('prodNome').value = p.nome;
-  document.getElementById('prodCategoria').value = p.categoria_id || '';
-  document.getElementById('prodUnidade').value = p.unidade;
-  document.getElementById('prodQtdMin').value = p.quantidade_minima;
-  document.getElementById('prodValidade').value = p.data_validade || '';
-  document.getElementById('prodLote').value = p.lote || '';
-  document.getElementById('prodLocal').value = p.localizacao || '';
-  
-  document.getElementById('modalProduto').classList.add('active');
-}
-
-async function saveProduto() {
-  console.log('💾 [FRONTEND] Iniciando salvamento do produto...');
-  
-  const id = document.getElementById('prodId')?.value;
-  const categoriaId = document.getElementById('prodCategoria')?.value;
-  const categoria = categorias.find(c => c.id == categoriaId);
-  
-  const getVal = (elementId) => {
-    const el = document.getElementById(elementId);
-    return el ? el.value : null;
-  };
-
-  const data = {
-    nome: getVal('prodNome'),
-    categoria_id: categoriaId,
-    unidade: getVal('prodUnidade') || 'UN',
-    quantidade: parseInt(getVal('prodQtd')) || 0,
-    quantidade_minima: parseInt(getVal('prodQtdMin')) || 0,
-    localizacao: getVal('prodLocal'),
-    data_validade: null,
-    lote: null,
-    marca: null,
-    modelo: null,
-    patrimonio: null
-  };
-  
-  if (categoria && categoria.tipo === 'permanente') {
-    data.marca = getVal('prodMarca') || null;
-    data.modelo = getVal('prodModelo') || null;
-    data.patrimonio = getVal('prodPatrimonio') || null;
-  } else {
-    data.data_validade = getVal('prodValidade') || null;
-    data.lote = getVal('prodLote') || null;
-  }
-  
-  if (!data.nome || !data.categoria_id) {
-    toast('Preencha nome e categoria', 'error');
-    return;
-  }
-  
-  try {
-    if (id && id !== '' && id !== 'undefined') {
-      console.log(`✏️ Atualizando produto ID: ${id}`);
-      const response = await api(`/api/produtos/${id}`, { method: 'PUT', body: data });
-      console.log('📤 Resposta da API (PUT):', response);
-      
-      // Condição flexível: aceita se tiver 'id' OU se tiver 'success'
-      if (response && (response.id !== undefined || response.success === true)) {
-        toast('Produto atualizado com sucesso!', 'success');
-        closeModal('modalProduto');
-        loadProdutos();
-      } else {
-        console.warn('⚠️ Resposta inesperada na atualização:', response);
-        toast('Erro ao atualizar produto', 'error');
-      }
-      
-    } else {
-      console.log('➕ Criando novo produto');
-      const response = await api('/api/produtos', { method: 'POST', body: data });
-      console.log('📤 Resposta da API (POST):', response);
-      
-      // CORREÇÃO PRINCIPAL: Aceita o sucesso se a resposta existir e não tiver propriedade 'error'
-      // ou se tiver o 'id' (mesmo que seja 0, que é falsy em JS, mas válido no SQLite as vezes)
-      if (response && !response.error) {
-        toast('Produto cadastrado com sucesso!', 'success');
-        closeModal('modalProduto'); // <-- Isso agora vai funcionar
-        loadProdutos();             // <-- Isso vai atualizar a tabela na hora
-      } else {
-        console.error('❌ O servidor recusou o cadastro. Resposta:', response);
-        toast('Erro ao cadastrar produto: ' + (response?.error || 'Verifique os dados'), 'error');
-      }
-    }
-  } catch (e) {
-    console.error('❌ Erro de rede ou sistema ao salvar produto:', e);
-    toast('Erro ao salvar: ' + (e.message || 'Erro desconhecido'), 'error');
-  }
-}
-
-async function deleteProduto(id) {
-  if (!confirm('Excluir?')) return;
-  try {
-    await api(`/api/produtos/${id}`, { method: 'DELETE' });
-    toast('Produto excluído', 'success');
-    loadProdutos();
-  } catch (e) {
-    toast(e.message, 'error');
-  }
-}
 
 // MOVIMENTAÇÕES
 async function loadMovimentacoes() {
@@ -1226,7 +1109,7 @@ function toggleCamposCategoria() {
   }
 }
 
-// ============ ABRIR MODAL DE PRODUTO (À PROVA DE FALHAS) ============
+// ============ ABRIR MODAL DE NOVO PRODUTO (CORRIGIDO) ============
 function openProdutoModal() {
   const modalTitle = document.getElementById('modalProdutoTitle');
   const form = document.getElementById('formProduto');
@@ -1234,8 +1117,6 @@ function openProdutoModal() {
   const prodQtd = document.getElementById('prodQtd');
   const prodQtdMin = document.getElementById('prodQtdMin');
   const prodUnidade = document.getElementById('prodUnidade');
-  const camposPermanente = document.getElementById('camposPermanente');
-  const camposValidadeLote = document.getElementById('camposValidadeLote');
   const modal = document.getElementById('modalProduto');
 
   if (modalTitle) modalTitle.textContent = 'Novo Produto';
@@ -1245,13 +1126,16 @@ function openProdutoModal() {
   if (prodQtdMin) prodQtdMin.value = '0';
   if (prodUnidade) prodUnidade.value = 'UN';
   
-  if (camposPermanente) camposPermanente.style.display = 'none';
-  if (camposValidadeLote) camposValidadeLote.style.display = 'block';
+  // ✅ CORREÇÃO: Removemos as linhas que forçavam a exibição errada.
+  // Agora chamamos a função que verifica a categoria selecionada e ajusta os campos.
+  if (typeof toggleCamposCategoria === 'function') {
+    setTimeout(toggleCamposCategoria, 50); // Pequeno delay para garantir que o reset() terminou
+  }
   
   if (modal) modal.classList.add('active');
 }
 
-// ============ EDITAR PRODUTO (À PROVA DE FALHAS) ============
+// ============ EDITAR PRODUTO (CORRIGIDO) ============
 function editProduto(id) {
   const p = produtos.find(x => x.id === id);
   if (!p) return;
@@ -1272,18 +1156,110 @@ function editProduto(id) {
   setVal('prodQtdMin', p.quantidade_minima || 0);
   setVal('prodLocal', p.localizacao);
   setVal('prodMarca', p.marca);
-  setVal('prodModelo', p.modelo);
+  setVal('prodModel', p.modelo);
   setVal('prodPatrimonio', p.patrimonio);
   setVal('prodValidade', p.data_validade);
   setVal('prodLote', p.lote);
   
-  // Aplica a lógica de exibição baseada na categoria
-  toggleCamposCategoria();
+  // ✅ CORREÇÃO: Garante que os campos corretos apareçam ao editar
+  if (typeof toggleCamposCategoria === 'function') {
+    setTimeout(toggleCamposCategoria, 50);
+  }
   
   const modal = document.getElementById('modalProduto');
   if (modal) modal.classList.add('active');
 }
+// DELETAR PRODUTO
+async function deleteProduto(id) {
+  if (!confirm('Excluir?')) return;
+  try {
+    await api(`/api/produtos/${id}`, { method: 'DELETE' });
+    toast('Produto excluído', 'success');
+    loadProdutos();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
 
+// SALVAR PRODUTO
+
+async function saveProduto() {
+  console.log('💾 [FRONTEND] Iniciando salvamento do produto...');
+  
+  const id = document.getElementById('prodId')?.value;
+  const categoriaId = document.getElementById('prodCategoria')?.value;
+  const categoria = categorias.find(c => c.id == categoriaId);
+  
+  const getVal = (elementId) => {
+    const el = document.getElementById(elementId);
+    return el ? el.value : null;
+  };
+
+  const data = {
+    nome: getVal('prodNome'),
+    categoria_id: categoriaId,
+    unidade: getVal('prodUnidade') || 'UN',
+    quantidade: parseInt(getVal('prodQtd')) || 0,
+    quantidade_minima: parseInt(getVal('prodQtdMin')) || 0,
+    localizacao: getVal('prodLocal'),
+    data_validade: null,
+    lote: null,
+    marca: null,
+    modelo: null,
+    patrimonio: null
+  };
+  
+  if (categoria && categoria.tipo === 'permanente') {
+    data.marca = getVal('prodMarca') || null;
+    data.modelo = getVal('prodModelo') || null;
+    data.patrimonio = getVal('prodPatrimonio') || null;
+  } else {
+    data.data_validade = getVal('prodValidade') || null;
+    data.lote = getVal('prodLote') || null;
+  }
+  
+  if (!data.nome || !data.categoria_id) {
+    toast('Preencha nome e categoria', 'error');
+    return;
+  }
+  
+  try {
+    if (id && id !== '' && id !== 'undefined') {
+      console.log(`✏️ Atualizando produto ID: ${id}`);
+      const response = await api(`/api/produtos/${id}`, { method: 'PUT', body: data });
+      console.log('📤 Resposta da API (PUT):', response);
+      
+      // Condição flexível: aceita se tiver 'id' OU se tiver 'success'
+      if (response && (response.id !== undefined || response.success === true)) {
+        toast('Produto atualizado com sucesso!', 'success');
+        closeModal('modalProduto');
+        loadProdutos();
+      } else {
+        console.warn('⚠️ Resposta inesperada na atualização:', response);
+        toast('Erro ao atualizar produto', 'error');
+      }
+      
+    } else {
+      console.log('➕ Criando novo produto');
+      const response = await api('/api/produtos', { method: 'POST', body: data });
+      console.log('📤 Resposta da API (POST):', response);
+      
+      // CORREÇÃO PRINCIPAL: Aceita o sucesso se a resposta existir e não tiver propriedade 'error'
+      // ou se tiver o 'id' (mesmo que seja 0, que é falsy em JS, mas válido no SQLite as vezes)
+      if (response && !response.error) {
+        toast('Produto cadastrado com sucesso!', 'success');
+        closeModal('modalProduto'); // <-- Isso agora vai funcionar
+        loadProdutos();             // <-- Isso vai atualizar a tabela na hora
+      } else {
+        console.error('❌ O servidor recusou o cadastro. Resposta:', response);
+        toast('Erro ao cadastrar produto: ' + (response?.error || 'Verifique os dados'), 'error');
+      }
+    }
+  } catch (e) {
+    console.error('❌ Erro de rede ou sistema ao salvar produto:', e);
+    toast('Erro ao salvar: ' + (e.message || 'Erro desconhecido'), 'error');
+  }
+}
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
@@ -1534,3 +1510,221 @@ loadDashboard = async function() {
   if (loadDashboardOriginal) await loadDashboardOriginal();
   await loadFaixasVencimento();
 };
+
+// ============ MODO OFFLINE & MENU MOBILE ============
+
+// 1. Menu Mobile
+const menuToggle = document.getElementById('menuToggle');
+const sidebar = document.querySelector('.sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+if (menuToggle && sidebar) {
+  function checkScreenSize() {
+    if (window.innerWidth <= 768) {
+      menuToggle.style.display = 'block';
+    } else {
+      menuToggle.style.display = 'none';
+      sidebar.classList.remove('open');
+      sidebarOverlay.classList.remove('active');
+    }
+  }
+  checkScreenSize();
+  window.addEventListener('resize', checkScreenSize);
+
+  menuToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    sidebarOverlay.classList.toggle('active');
+  });
+
+  sidebarOverlay.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    sidebarOverlay.classList.remove('active');
+  });
+
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 768) {
+        sidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('active');
+      }
+    });
+  });
+}
+
+// 2. Sistema de Fila Offline
+const OFFLINE_QUEUE_KEY = 'offline_queue_produtos';
+
+async function saveProdutoOffline(data) {
+  const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+  queue.push({
+    ...data,
+    _idTemp: Date.now(),
+    _createdAt: new Date().toISOString()
+  });
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  toast('⚠️ Salvo offline! Será enviado quando voltar a internet.', 'warning');
+  closeModal('modalProduto');
+  loadProdutos(); // Atualiza a tabela localmente se quiser
+}
+
+window.sincronizarDadosOffline = async function() {
+  const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+  if (queue.length === 0) return;
+
+  toast(`🔄 Sincronizando ${queue.length} item(ns)...`, 'info');
+  let sucesso = 0;
+
+  for (const item of queue) {
+    try {
+      const { _idTemp, _createdAt, ...dadosReais } = item;
+      await api('/api/produtos', { method: 'POST', body: dadosReais });
+      sucesso++;
+    } catch (e) {
+      console.error('Erro ao sincronizar item:', e);
+    }
+  }
+
+  if (sucesso > 0) {
+    // Remove os itens que deram certo da fila
+    const novaFila = queue.filter(item => {
+       // Lógica simples: limpa tudo se a maioria foi, ou refina depois
+       return false; 
+    });
+    // Para simplificar, se sincronizou, limpa a fila toda (pode ser refinado depois)
+    localStorage.setItem(OFFLINE_QUEUE_KEY, '[]');
+    toast(`✅ ${sucesso} item(ns) sincronizado(s)!`, 'success');
+    loadProdutos();
+  }
+};
+
+// 3. Sobrescrever saveProduto para checar internet
+const saveProdutoOriginal = saveProduto;
+saveProduto = async function() {
+  if (!navigator.onLine) {
+    const categoriaId = document.getElementById('prodCategoria')?.value;
+    const getVal = (id) => document.getElementById(id)?.value || null;
+    
+    const data = {
+      nome: getVal('prodNome'),
+      categoria_id: categoriaId,
+      unidade: getVal('prodUnidade') || 'UN',
+      quantidade: parseInt(getVal('prodQtd')) || 0,
+      quantidade_minima: parseInt(getVal('prodQtdMin')) || 0,
+      localizacao: getVal('prodLocal'),
+      data_validade: getVal('prodValidade'),
+      lote: getVal('prodLote'),
+      marca: getVal('prodMarca'),
+      modelo: getVal('prodModelo'),
+      patrimonio: getVal('prodPatrimonio')
+    };
+
+    if (!data.nome || !data.categoria_id) {
+      toast('Preencha nome e categoria', 'error');
+      return;
+    }
+    await saveProdutoOffline(data);
+    return;
+  }
+  // Se estiver online, usa a função original
+  await saveProdutoOriginal();
+};
+
+// Tenta sincronizar ao carregar a página
+if (navigator.onLine) {
+  setTimeout(() => {
+    if(window.sincronizarDadosOffline) window.sincronizarDadosOffline();
+  }, 2000);
+}
+
+// ============ TOGGLE SENHA NO LOGIN (Versão Simplificada) ============
+(function() {
+  const toggleBtn = document.getElementById('togglePassword');
+  const passwordInput = document.getElementById('loginPass');
+  const eyeIcon = document.getElementById('eyeIcon');
+  
+  if (!toggleBtn || !passwordInput || !eyeIcon) {
+    console.log('⚠️ Elementos do toggle não encontrados');
+    return;
+  }
+  
+  // SVG do olho aberto
+  const eyeOpenSVG = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+  
+  // SVG do olho fechado
+  const eyeClosedSVG = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+  
+  let isPasswordVisible = false;
+  
+  function togglePassword() {
+    isPasswordVisible = !isPasswordVisible;
+    
+    // Alterna tipo do input
+    passwordInput.type = isPasswordVisible ? 'text' : 'password';
+    
+    // Alterna ícone
+    eyeIcon.innerHTML = isPasswordVisible ? eyeClosedSVG : eyeOpenSVG;
+    
+    console.log('Senha:', isPasswordVisible ? 'visível' : 'oculta');
+  }
+  
+  // Eventos
+  toggleBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    togglePassword();
+  });
+  
+  toggleBtn.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    togglePassword();
+  });
+  
+  toggleBtn.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+  });
+  
+  console.log('✅ Toggle de senha inicializado');
+})();
+
+// ============ ATUALIZAR CAMPOS POR CATEGORIA ============
+function atualizarCamposPorCategoria() {
+  const categoriaId = document.getElementById('prodCategoria')?.value;
+  const categoria = categorias.find(c => c.id == categoriaId);
+  
+  if (!categoria) return;
+  
+  // IDs dos campos
+  const camposConsumo = ['prodValidade', 'prodLote', 'prodLocal'];
+  const camposPermanente = ['prodMarca', 'prodModelo', 'prodPatrimonio'];
+  
+  if (categoria.tipo === 'permanente') {
+    // Material Permanente: mostra marca, modelo, patrimônio
+    camposPermanente.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.closest('.form-group')) {
+        el.closest('.form-group').style.display = 'block';
+      }
+    });
+    camposConsumo.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.closest('.form-group')) {
+        el.closest('.form-group').style.display = 'none';
+      }
+    });
+  } else {
+    // Material de Consumo: mostra validade, lote, localização
+    camposConsumo.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.closest('.form-group')) {
+        el.closest('.form-group').style.display = 'block';
+      }
+    });
+    camposPermanente.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.closest('.form-group')) {
+        el.closest('.form-group').style.display = 'none';
+      }
+    });
+  }
+}

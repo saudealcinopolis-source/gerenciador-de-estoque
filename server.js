@@ -416,7 +416,22 @@ app.post('/api/movimentacoes', authMiddleware(['admin', 'gestor', 'usuario']), (
 });
 
 app.get('/api/movimentacoes', authMiddleware(), (req, res) => {
-  res.json(all(`SELECT m.*, p.nome as produto_nome, u.nome as usuario_nome FROM movimentacoes m LEFT JOIN produtos p ON m.produto_id = p.id LEFT JOIN users u ON m.usuario_id = u.id ORDER BY m.data_movimentacao DESC LIMIT 500`));
+  const sql = `
+    SELECT m.*, 
+           COALESCE(p.nome, 'Produto Excluído') as produto_nome, 
+           p.categoria_id, 
+           c.nome as categoria_nome,
+           u.nome as usuario_nome
+    FROM movimentacoes m
+    LEFT JOIN produtos p ON m.produto_id = p.id
+    LEFT JOIN categorias c ON p.categoria_id = c.id
+    LEFT JOIN users u ON m.usuario_id = u.id
+    ORDER BY m.data_movimentacao DESC 
+    LIMIT 500
+  `;
+  
+  const movimentacoes = all(sql);
+  res.json(movimentacoes);
 });
 
 // ============ ROTAS NOTIFICAÇÕES E DASHBOARD ============
@@ -511,8 +526,6 @@ app.get('/api/relatorio/movimentacoes', authMiddleware(), (req, res) => {
     
     sql += ' ORDER BY m.data_movimentacao DESC';
     
-    console.log('📝 SQL executado:', sql);
-    console.log('📝 Parâmetros:', params);
     
     // Usa a função all() que já existe no seu código
     const movimentacoes = all(sql, params);

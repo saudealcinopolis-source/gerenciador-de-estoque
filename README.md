@@ -72,7 +72,6 @@ Usuário: admin
 Senha: admin123
 
 ## 📂 Estrutura do Projeto
-
 ```
 gerenciador-de-estoque/
 │

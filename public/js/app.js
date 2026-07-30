@@ -1083,13 +1083,37 @@ async function loadBackups() {
         <td>${tamanho}</td>
         <td>${data}</td>
         <td>
-          <a href="/api/backups/${b.name}/download" class="btn btn-primary btn-sm" target="_blank">📥 Download</a>
+          <button class="btn btn-primary btn-sm" onclick="downloadBackup('${b.name}')"> Download</button>
           <button class="btn btn-warning btn-sm" onclick="restoreBackup('${b.name}')">🔄 Restaurar</button>
           <button class="btn btn-danger btn-sm" onclick="deleteBackup('${b.name}')">🗑️ Excluir</button>
         </td>
       </tr>`;
     }).join('');
   } catch (error) { console.error('Erro ao carregar backups:', error); }
+}
+
+// Função para baixar backup enviando o token de autenticação
+async function downloadBackup(filename) {
+  try {
+    const res = await fetch(`/api/backups/${filename}/download`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!res.ok) throw new Error('Falha no download');
+    
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    console.error('Erro ao baixar backup:', e);
+    toast('Erro ao baixar backup. Verifique se está logado.', 'error');
+  }
 }
 
 async function restoreBackup(filename) {

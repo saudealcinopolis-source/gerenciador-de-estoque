@@ -1,9 +1,9 @@
 {
   "automatico": true,
-  "frequencia": "diario",
-  "horario": "12:40",
-  "reter": 4,
+  "frequencia": "dia",
+  "horario": "11:08",
+  "reter": 2,
   "inteligente": true,
-  "ultimoBackup": "2026-07-27T17:19:29.137Z",
-  "ultimoHash": "d1d577345e8e5e47859c00f785618eac"
+  "ultimoBackup": "2026-07-30T13:35:23.500Z",
+  "ultimoHash": "93acece192b9ba8ceec9050f78796975"
 }

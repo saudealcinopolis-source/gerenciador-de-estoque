@@ -1,4 +1,4 @@
-const CACHE_NAME = 'estoque-v1';
+const CACHE_NAME = 'estoque-v3';
 const urlsToCache = [
   '/',
   '/css/styles.css',

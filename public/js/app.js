@@ -1,11 +1,201 @@
+// ==========================================
 // ESTADO GLOBAL
+// ==========================================
 let token = localStorage.getItem('token');
 let currentUser = JSON.parse(localStorage.getItem('user') || 'null');
 let produtos = [];
 let categorias = [];
 let notificacoesLidas = JSON.parse(localStorage.getItem('notificacoesLidas') || '[]');
 
+// ==========================================
+// MÁSCARA E CONVERSÃO DE DATA (DD/MM/AAAA <-> AAAA-MM-DD)
+// ==========================================
+function mascaraDataBR(input) {
+  let v = input.value.replace(/\D/g, '').slice(0, 8);
+  if (v.length > 4) v = v.slice(0, 2) + '/' + v.slice(2, 4) + '/' + v.slice(4);
+  else if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2);
+  input.value = v;
+}
+function dataBRparaISO(br) {
+  if (!br) return null;
+  const p = br.split('/');
+  if (p.length !== 3 || p[0].length !== 2 || p[1].length !== 2 || p[2].length !== 4) return null;
+  return `${p[2]}-${p[1]}-${p[0]}`;
+}
+function dataISOParaBR(iso) {
+  if (!iso) return '';
+  const [y, m, d] = String(iso).split('-');
+  return `${d}/${m}/${y}`;
+}
+// ==========================================
+// DATEPICKER HÍBRIDO (digita OU clica) — JS puro, sem libs, funciona offline
+// ==========================================
+(function () {
+  const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const MESES_CURTO = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const DOW = ['D','S','T','Q','Q','S','S'];
+
+  let popover = null;     // elemento único reutilizável
+  let alvo = null;        // input atualmente vinculado
+  let cursor = new Date(); // mês/ano sendo exibido
+  let view = 'days';      // 'days' | 'months' | 'years'
+
+  function parseBR(br) {
+    const p = (br || '').split('/');
+    if (p.length === 3 && p[0].length === 2 && p[1].length === 2 && p[2].length === 4) {
+      const d = new Date(+p[2], +p[1] - 1, +p[0]);
+      if (!isNaN(d)) return d;
+    }
+    return null;
+  }
+  function fmt(d) {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}/${mm}/${d.getFullYear()}`;
+  }
+  function mesmoDia(a, b) { return a && b && a.getDate()===b.getDate() && a.getMonth()===b.getMonth() && a.getFullYear()===b.getFullYear(); }
+
+  function garantirPopover() {
+    if (popover) return popover;
+    popover = document.createElement('div');
+    popover.className = 'dp-popover';
+    popover.innerHTML = `
+      <div class="dp-head">
+        <button type="button" class="dp-nav" data-act="prev" aria-label="Anterior">‹</button>
+        <button type="button" class="dp-title" data-act="title"></button>
+        <button type="button" class="dp-nav" data-act="next" aria-label="Próximo">›</button>
+      </div>
+      <div class="dp-grid-wrap"><div class="dp-grid"></div></div>
+      <div class="dp-foot">
+        <button type="button" class="dp-link" data-act="today">Hoje</button>
+        <button type="button" class="dp-link dp-clear" data-act="clear">Limpar</button>
+      </div>`;
+    document.body.appendChild(popover);
+
+    popover.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) {
+        const cell = e.target.closest('.dp-cell');
+        if (cell && !cell.classList.contains('dp-empty')) escolherCell(cell);
+        return;
+      }
+      const act = btn.dataset.act;
+      if (act === 'prev') navegar(-1);
+      else if (act === 'next') navegar(1);
+      else if (act === 'title') view = view === 'days' ? 'months' : view === 'months' ? 'years' : 'days', render();
+      else if (act === 'today') { cursor = new Date(); view = 'days'; escrever(new Date()); fechar(); }
+      else if (act === 'clear') { if (alvo) alvo.value = ''; fechar(); }
+    });
+    return popover;
+  }
+
+  function navegar(dir) {
+    if (view === 'days') cursor.setMonth(cursor.getMonth() + dir);
+    else if (view === 'months') cursor.setFullYear(cursor.getFullYear() + dir);
+    else cursor.setFullYear(cursor.getFullYear() + dir * 12);
+    render();
+  }
+
+  function escolherCell(cell) {
+    if (view === 'days') {
+      const d = new Date(cursor.getFullYear(), cursor.getMonth(), +cell.dataset.day);
+      escrever(d); fechar();
+    } else if (view === 'months') {
+      cursor.setMonth(+cell.dataset.month); view = 'days'; render();
+    } else {
+      cursor.setFullYear(+cell.dataset.year); view = 'months'; render();
+    }
+  }
+
+  function escrever(d) { if (alvo) { alvo.value = fmt(d); alvo.dispatchEvent(new Event('input')); } }
+
+  function render() {
+    garantirPopover();
+    const title = popover.querySelector('.dp-title');
+    const grid = popover.querySelector('.dp-grid');
+    const sel = parseBR(alvo ? alvo.value : '');
+
+    if (view === 'days') {
+      title.textContent = `${MESES[cursor.getMonth()]} ${cursor.getFullYear()}`;
+      let html = DOW.map(d => `<span class="dp-dow">${d}</span>`).join('');
+      const primeiro = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+      const inicio = primeiro.getDay();
+      const diasNoMes = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+      const hoje = new Date(); hoje.setHours(0,0,0,0);
+      for (let i = 0; i < inicio; i++) html += `<span class="dp-cell dp-empty"></span>`;
+      for (let d = 1; d <= diasNoMes; d++) {
+        const data = new Date(cursor.getFullYear(), cursor.getMonth(), d);
+        const cls = ['dp-cell'];
+        if (mesmoDia(data, hoje)) cls.push('dp-today');
+        if (mesmoDia(data, sel)) cls.push('dp-selected');
+        html += `<button type="button" class="${cls.join(' ')}" data-day="${d}">${d}</button>`;
+      }
+      grid.className = 'dp-grid dp-days';
+      grid.innerHTML = html;
+    } else if (view === 'months') {
+      title.textContent = `${cursor.getFullYear()}`;
+      grid.className = 'dp-grid dp-months';
+      grid.innerHTML = MESES_CURTO.map((m, i) => {
+        const selM = sel && sel.getMonth() === i && sel.getFullYear() === cursor.getFullYear();
+        return `<button type="button" class="dp-cell${selM ? ' dp-selected' : ''}" data-month="${i}">${m}</button>`;
+      }).join('');
+    } else {
+      const base = Math.floor(cursor.getFullYear() / 12) * 12;
+      title.textContent = `${base} – ${base + 11}`;
+      grid.className = 'dp-grid dp-years';
+      let html = '';
+      for (let y = base; y < base + 12; y++) {
+        const selY = sel && sel.getFullYear() === y;
+        html += `<button type="button" class="dp-cell${selY ? ' dp-selected' : ''}" data-year="${y}">${y}</button>`;
+      }
+      grid.innerHTML = html;
+    }
+  }
+
+  function posicionar() {
+    if (!alvo) return;
+    const r = alvo.getBoundingClientRect();
+    const isMobile = window.innerWidth <= 768;
+    popover.classList.toggle('dp-sheet', isMobile);
+    if (isMobile) { popover.style.left = ''; popover.style.top = ''; return; }
+    popover.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 300)) + 'px';
+    const abreEmbaixo = r.bottom + 340 < window.innerHeight;
+    popover.style.top = abreEmbaixo ? (r.bottom + window.scrollY + 6) + 'px' : (r.top + window.scrollY - 340) + 'px';
+  }
+
+  function abrir(input) {
+    alvo = input; view = 'days';
+    const d = parseBR(input.value);
+    cursor = d ? new Date(d.getFullYear(), d.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    garantirPopover(); render(); posicionar();
+    popover.classList.add('dp-open');
+  }
+  function fechar() { if (popover) popover.classList.remove('dp-open'); }
+
+  // Inicializa um input: anexa o botão e os eventos
+  window.initDatePicker = function (inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const btn = document.getElementById(inputId + 'Btn') || input.parentElement.querySelector('.date-picker-btn');
+    if (btn) btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); abrir(input); });
+    input.addEventListener('focus', () => {}); // digitação livre, não abre sozinho
+  };
+
+  // Fecha ao clicar fora / ESC / rolar
+  document.addEventListener('click', (e) => {
+    if (!popover || !popover.classList.contains('dp-open')) return;
+    if (popover.contains(e.target)) return;
+    if (e.target.closest('.date-picker-btn')) return;
+    fechar();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fechar(); });
+  window.addEventListener('resize', () => { if (popover && popover.classList.contains('dp-open')) posicionar(); });
+  window.addEventListener('scroll', () => { if (popover && popover.classList.contains('dp-open') && window.innerWidth > 768) posicionar(); }, true);
+})();
+
+// ==========================================
 // TEMA
+// ==========================================
 function initTheme() {
   const savedTheme = localStorage.getItem('theme') || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
@@ -28,15 +218,13 @@ function updateThemeIcon() {
   }
 }
 
-// Inicializar tema e evento
 initTheme();
-
 const themeToggle = document.getElementById('themeToggle');
-if (themeToggle) {
-  themeToggle.addEventListener('click', toggleTheme);
-}
+if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
 
-// API
+// ==========================================
+// API HELPER
+// ==========================================
 async function api(url, options = {}) {
   try {
     const res = await fetch(url, {
@@ -49,7 +237,6 @@ async function api(url, options = {}) {
       body: options.body ? JSON.stringify(options.body) : undefined
     });
     
-    // Verifica se a resposta é realmente JSON
     const contentType = res.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       const data = await res.json();
@@ -59,10 +246,9 @@ async function api(url, options = {}) {
       }
       return data;
     } else {
-      // Se for HTML (erro do servidor), lê como texto e mostra no console
       const text = await res.text();
-      console.error('❌ O servidor retornou HTML em vez de JSON. Erro real:', text);
-      throw new Error('Erro interno do servidor. Verifique o terminal (tela preta).');
+      console.error('❌ O servidor retornou HTML:', text);
+      throw new Error('Erro interno do servidor. Verifique o terminal.');
     }
   } catch (error) {
     console.error('API Error:', error);
@@ -71,7 +257,9 @@ async function api(url, options = {}) {
   }
 }
 
+// ==========================================
 // TOAST
+// ==========================================
 function toast(msg, type = 'info') {
   const container = document.getElementById('toastContainer');
   if (!container) return;
@@ -82,27 +270,36 @@ function toast(msg, type = 'info') {
   setTimeout(() => el.remove(), 3500);
 }
 
-// LOGIN
-const loginForm = document.getElementById('loginForm');
-if (loginForm) {
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('loginUser').value;
-    const password = document.getElementById('loginPass').value;
-    
-    const data = await api('/api/login', {
-      method: 'POST',
-      body: { username, password }
-    });
-    
-    if (data) {
+// ==========================================
+// LOGIN & LOGOUT
+// ==========================================
+async function fazerLogin(e) {
+  if(e) e.preventDefault();
+  
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+
+  try {
+    const data = await api('/api/login', { method: 'POST', body: { username, password } });
+
+    if (data && data.token) {
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user)); 
       token = data.token;
       currentUser = data.user;
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(currentUser));
+      
+      if (typeof atualizarMenuPorPerfil === 'function') atualizarMenuPorPerfil(); 
+      
       showApp();
+      loadPage('dashboard'); 
+      toast('Login realizado com sucesso!', 'success');
+    } else {
+      toast('Usuário ou senha inválidos', 'error');
     }
-  });
+  } catch (error) {
+    console.error('Erro no login:', error);
+    toast('Erro ao fazer login: ' + (error.message || 'Verifique o servidor'), 'error');
+  }
 }
 
 function logout() {
@@ -116,7 +313,9 @@ function logout() {
 const logoutBtn = document.getElementById('logoutBtn');
 if (logoutBtn) logoutBtn.addEventListener('click', logout);
 
-// ============ MOSTRAR APP ============
+// ==========================================
+// MOSTRAR APP & NAVEGAÇÃO
+// ==========================================
 function showApp() {
   const loginScreen = document.getElementById('loginScreen');
   const appScreen = document.getElementById('appScreen');
@@ -130,12 +329,9 @@ function showApp() {
   if (userName && currentUser) userName.textContent = currentUser.nome;
   if (userPerfil && currentUser) userPerfil.textContent = currentUser.perfil;
 
-  // Esconder menus admin se não for admin
   if (currentUser && currentUser.perfil !== 'admin') {
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
   }
-  
-  // Esconder botões de gestor se for usuário comum
   if (currentUser && currentUser.perfil === 'usuario') {
     document.querySelectorAll('.gestor-admin-only').forEach(el => el.style.display = 'none');
   }
@@ -144,21 +340,15 @@ function showApp() {
   loadNotificacoes();
   setInterval(loadNotificacoes, 60000);
 
-  // RESTAURAR A ÚLTIMA ABA VISUALIZADA
   let lastTab = localStorage.getItem('lastActiveTab') || 'dashboard';
   const navItem = document.querySelector(`.nav-item[data-page="${lastTab}"]`);
   
-  // Se a aba estiver oculta (ex: usuário comum tentando acessar backup), volta para dashboard
-  if (!navItem || navItem.style.display === 'none') {
-    lastTab = 'dashboard';
-  }
+  if (!navItem || navItem.style.display === 'none') lastTab = 'dashboard';
 
-  // Ativar visualmente a aba
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
   const activeNavItem = document.querySelector(`.nav-item[data-page="${lastTab}"]`);
   if (activeNavItem) activeNavItem.classList.add('active');
 
-  // Mostrar a página correta
   document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
   const targetPage = document.getElementById(`page-${lastTab}`);
   if (targetPage) {
@@ -171,21 +361,22 @@ function showApp() {
 
 if (token && currentUser) showApp();
 
-// ============ NAVEGAÇÃO ============
 document.querySelectorAll('.nav-item[data-page]').forEach(item => {
   item.addEventListener('click', () => {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     item.classList.add('active');
-    
-    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
-    
+
+    document.querySelectorAll('.page').forEach(p => {
+      p.classList.add('hidden');
+      p.style.removeProperty('display'); // desintoxica cada página ao esconder
+    });
+
     const page = item.dataset.page;
-    
-    // SALVA A ABA ATUAL NA MEMÓRIA
     localStorage.setItem('lastActiveTab', page);
-    
+
     const targetPage = document.getElementById(`page-${page}`);
     if (targetPage) {
+      targetPage.style.removeProperty('display'); // desintoxica antes de mostrar
       targetPage.classList.remove('hidden');
       loadPage(page);
     }
@@ -199,15 +390,21 @@ function loadPage(page) {
     case 'movimentacoes': loadMovimentacoes(); break;
     case 'vencimentos': loadVencimentos(); break;
     case 'usuarios': loadUsuarios(); break;
+    case 'unidades': loadUnidades(); break;
     case 'backup': 
       loadBackupConfig();
       loadBackups();
       loadBackupStats();
       break;
+    case 'relatorios':
+      // A UI de relatórios é gerenciada pelos botões de seleção, nada a carregar inicialmente
+      break;
   }
 }
 
-// DASHBOARD
+// ==========================================
+// DASHBOARD & NOTIFICAÇÕES
+// ==========================================
 async function loadDashboard() {
   const data = await api('/api/dashboard');
   if (!data) return;
@@ -221,50 +418,34 @@ async function loadDashboard() {
       <div class="stat-card danger"><div class="label">Vencidos</div><div class="value">${data.vencidos || 0}</div></div>
     `;
   }
-
   await loadPrioridadeLotes();
   await loadDashAlerts();
 }
 
-// PRIORIDADE FEFO
 async function loadPrioridadeLotes() {
   const prods = await api('/api/produtos');
   if (!prods) return;
-  
   const container = document.getElementById('dashPrioridade');
   const tbody = document.getElementById('prioridadeTable');
-  
   if (!container || !tbody) return;
   
   const comValidade = prods.filter(p => p.data_validade && p.quantidade > 0);
   comValidade.sort((a, b) => new Date(a.data_validade) - new Date(b.data_validade));
   
-  if (comValidade.length === 0) {
-    container.style.display = 'none';
-    return;
-  }
-  
+  if (comValidade.length === 0) { container.style.display = 'none'; return; }
   container.style.display = 'block';
   
   tbody.innerHTML = comValidade.map((p, index) => {
     const dias = diasParaVencimento(p.data_validade);
     const prioridade = index + 1;
+    let statusClass = 'badge-success', statusIcon = '✅', statusText = `${dias} dias`;
     
-    let statusClass = '', statusIcon = '', statusText = '';
-    if (dias < 0) {
-      statusClass = 'badge-danger'; statusIcon = '🚨'; statusText = `VENCIDO (${Math.abs(dias)}d)`;
-    } else if (dias <= 10) {
-      statusClass = 'badge-danger'; statusIcon = '⚠️'; statusText = `${dias} dias`;
-    } else if (dias <= 30) {
-      statusClass = 'badge-warning'; statusIcon = '⏰'; statusText = `${dias} dias`;
-    } else if (dias <= 90) {
-      statusClass = 'badge-info'; statusIcon = ''; statusText = `${dias} dias`;
-    } else {
-      statusClass = 'badge-success'; statusIcon = '✅'; statusText = `${dias} dias`;
-    }
+    if (dias < 0) { statusClass = 'badge-danger'; statusIcon = '🚨'; statusText = `VENCIDO (${Math.abs(dias)}d)`; }
+    else if (dias <= 10) { statusClass = 'badge-danger'; statusIcon = '⚠️'; statusText = `${dias} dias`; }
+    else if (dias <= 30) { statusClass = 'badge-warning'; statusIcon = '⏰'; statusText = `${dias} dias`; }
+    else if (dias <= 90) { statusClass = 'badge-info'; statusIcon = ''; statusText = `${dias} dias`; }
     
     const urgente = prioridade <= 3 ? 'style="background: rgba(239, 68, 68, 0.08);"' : '';
-    
     return `
       <tr ${urgente}>
         <td><strong style="color: ${prioridade <= 3 ? 'var(--danger)' : 'var(--text-light)'}">#${prioridade}</strong> ${prioridade <= 3 ? '🔥' : ''}</td>
@@ -279,115 +460,71 @@ async function loadPrioridadeLotes() {
   }).join('');
 }
 
-// ALERTAS DASHBOARD
 async function loadDashAlerts() {
   const notifs = await api('/api/notificacoes');
   if (!notifs) return;
-  
   const dashDetails = document.getElementById('dashDetails');
   if (!dashDetails) return;
   
   let html = '';
-
   if (notifs.vencidos?.length) {
     html += `<div class="card"><h3 style="color: var(--danger); margin-bottom: 16px;">🚨 Vencidos (${notifs.vencidos.length})</h3>
       <table><thead><tr><th>Produto</th><th>Validade</th><th>Dias</th><th>Ações</th></tr></thead><tbody>
-      ${notifs.vencidos.map(p => `
-        <tr>
-          <td><strong>${p.nome}</strong></td>
-          <td>${formatDate(p.data_validade)}</td>
-          <td><span class="badge badge-danger">${p.dias_vencido}d</span></td>
-          <td><button class="btn btn-primary btn-sm" onclick="verDetalhesVencimento(${p.id})">Ver</button></td>
-        </tr>
-      `).join('')}</tbody></table></div>`;
+      ${notifs.vencidos.map(p => `<tr><td><strong>${p.nome}</strong></td><td>${formatDate(p.data_validade)}</td><td><span class="badge badge-danger">${p.dias_vencido}d</span></td><td><button class="btn btn-primary btn-sm" onclick="verDetalhesVencimento(${p.id})">Ver</button></td></tr>`).join('')}</tbody></table></div>`;
   }
-
   if (notifs.vencendo?.length) {
     html += `<div class="card"><h3 style="color: var(--warning); margin-bottom: 16px;">⚠️ Vencendo (${notifs.vencendo.length})</h3>
       <table><thead><tr><th>Produto</th><th>Validade</th><th>Dias</th><th>Ações</th></tr></thead><tbody>
-      ${notifs.vencendo.map(p => `
-        <tr>
-          <td><strong>${p.nome}</strong></td>
-          <td>${formatDate(p.data_validade)}</td>
-          <td><span class="badge badge-warning">${p.dias_restantes}d</span></td>
-          <td><button class="btn btn-primary btn-sm" onclick="verDetalhesVencimento(${p.id})">Ver</button></td>
-        </tr>
-      `).join('')}</tbody></table></div>`;
+      ${notifs.vencendo.map(p => `<tr><td><strong>${p.nome}</strong></td><td>${formatDate(p.data_validade)}</td><td><span class="badge badge-warning">${p.dias_restantes}d</span></td><td><button class="btn btn-primary btn-sm" onclick="verDetalhesVencimento(${p.id})">Ver</button></td></tr>`).join('')}</tbody></table></div>`;
   }
-
   if (notifs.estoqueBaixo?.length) {
     html += `<div class="card"><h3 style="color: var(--primary); margin-bottom: 16px;">📦 Estoque Baixo (${notifs.estoqueBaixo.length})</h3>
       <table><thead><tr><th>Produto</th><th>Qtd</th><th>Mín</th><th>Ações</th></tr></thead><tbody>
-      ${notifs.estoqueBaixo.map(p => `
-        <tr>
-          <td><strong>${p.nome}</strong></td>
-          <td><span class="badge badge-danger">${p.quantidade}</span></td>
-          <td>${p.quantidade_minima}</td>
-          <td><button class="btn btn-primary btn-sm" onclick="verDetalhesVencimento(${p.id})">Ver</button></td>
-        </tr>
-      `).join('')}</tbody></table></div>`;
+      ${notifs.estoqueBaixo.map(p => `<tr><td><strong>${p.nome}</strong></td><td><span class="badge badge-danger">${p.quantidade}</span></td><td>${p.quantidade_minima}</td><td><button class="btn btn-primary btn-sm" onclick="verDetalhesVencimento(${p.id})">Ver</button></td></tr>`).join('')}</tbody></table></div>`;
   }
-
   if (!html) html = '<div class="card"><div class="alert alert-success">✅ Tudo em ordem!</div></div>';
-  
   dashDetails.innerHTML = html;
 }
 
-// NOTIFICAÇÕES
 async function loadNotificacoes() {
   const data = await api('/api/notificacoes');
   if (!data) return;
-  
   const total = (data.vencidos?.length || 0) + (data.vencendo?.length || 0) + (data.estoqueBaixo?.length || 0);
   const countEl = document.getElementById('notifCount');
-  
   if (countEl) {
     const naoLidas = total - notificacoesLidas.length;
-    if (naoLidas > 0) {
-      countEl.textContent = naoLidas;
-      countEl.classList.remove('hidden');
-    } else {
-      countEl.classList.add('hidden');
-    }
+    if (naoLidas > 0) { countEl.textContent = naoLidas; countEl.classList.remove('hidden'); } 
+    else { countEl.classList.add('hidden'); }
   }
-
   const notifList = document.getElementById('notifList');
   if (!notifList) return;
   
   let html = '';
-  
   data.vencidos?.forEach(p => {
     const id = `vencido_${p.id}`;
     const isRead = notificacoesLidas.includes(id);
     html += `<div class="notification-item danger ${isRead ? 'read' : ''}" data-id="${id}">
-      <div class="title">🚨 ${p.nome} - VENCIDO</div>
-      <div class="desc">${p.dias_vencido}d atrás</div>
+      <div class="title">🚨 ${p.nome} - VENCIDO</div><div class="desc">${p.dias_vencido}d atrás</div>
       ${!isRead ? `<button class="btn-mark-read" onclick="marcarComoLida('${id}', event)">Marcar lida</button>` : ''}
     </div>`;
   });
-  
   data.vencendo?.forEach(p => {
     const id = `vencendo_${p.id}`;
     const isRead = notificacoesLidas.includes(id);
     html += `<div class="notification-item warning ${isRead ? 'read' : ''}" data-id="${id}">
-      <div class="title">️ ${p.nome}</div>
-      <div class="desc">Vence em ${p.dias_restantes}d</div>
+      <div class="title">⚠️ ${p.nome}</div><div class="desc">Vence em ${p.dias_restantes}d</div>
       ${!isRead ? `<button class="btn-mark-read" onclick="marcarComoLida('${id}', event)">Marcar lida</button>` : ''}
     </div>`;
   });
-  
   data.estoqueBaixo?.forEach(p => {
     const id = `estoque_${p.id}`;
     const isRead = notificacoesLidas.includes(id);
     html += `<div class="notification-item ${isRead ? 'read' : ''}" data-id="${id}">
-      <div class="title">📦 ${p.nome} - Estoque baixo</div>
-      <div class="desc">${p.quantidade} un. (mín: ${p.quantidade_minima})</div>
+      <div class="title">📦 ${p.nome} - Estoque baixo</div><div class="desc">${p.quantidade} un. (mín: ${p.quantidade_minima})</div>
       ${!isRead ? `<button class="btn-mark-read" onclick="marcarComoLida('${id}', event)">Marcar lida</button>` : ''}
     </div>`;
   });
-  
   if (!html) html = '<div style="padding: 20px; text-align: center; color: var(--text-light);">Sem notificações</div>';
-  
   notifList.innerHTML = html;
 }
 
@@ -422,31 +559,28 @@ if (notifBell) {
     if (panel) panel.classList.toggle('active');
   });
 }
-
 document.addEventListener('click', () => {
   const panel = document.getElementById('notifPanel');
   if (panel) panel.classList.remove('active');
 });
 
-// CATEGORIAS
+// ==========================================
+// CATEGORIAS & PRODUTOS
+// ==========================================
 async function loadCategorias() {
   categorias = await api('/api/categorias');
   if (!categorias) return;
-  
   const selects = [document.getElementById('prodCategoria'), document.getElementById('filterCategoria')];
   selects.forEach(sel => {
     if (!sel) return;
     const current = sel.value;
     const isFilter = sel.id === 'filterCategoria';
     sel.innerHTML = isFilter ? '<option value="">Todas categorias</option>' : '';
-    categorias.forEach(c => {
-      sel.innerHTML += `<option value="${c.id}">${c.nome}</option>`;
-    });
+    categorias.forEach(c => { sel.innerHTML += `<option value="${c.id}">${c.nome}</option>`; });
     sel.value = current;
   });
 }
 
-// PRODUTOS
 async function loadProdutos() {
   produtos = await api('/api/produtos');
   if (!produtos) return;
@@ -456,7 +590,6 @@ async function loadProdutos() {
 function renderProdutos() {
   const search = document.getElementById('searchProduto')?.value.toLowerCase() || '';
   const catFilter = document.getElementById('filterCategoria')?.value || '';
-  
   const filtered = produtos.filter(p => {
     const matchSearch = p.nome.toLowerCase().includes(search) || (p.lote || '').toLowerCase().includes(search);
     const matchCat = !catFilter || p.categoria_id == catFilter;
@@ -465,7 +598,6 @@ function renderProdutos() {
 
   const tbody = document.getElementById('produtosTable');
   if (!tbody) return;
-  
   if (!filtered.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 40px;">Nenhum produto</td></tr>';
     return;
@@ -480,13 +612,12 @@ function renderProdutos() {
       else if (dias <= 10) validadeBadge = `<span class="badge badge-warning">${dias}d</span>`;
       else validadeBadge = `<span class="badge badge-success">${dias}d</span>`;
     }
-    const qtdBadge = p.quantidade <= p.quantidade_minima && p.quantidade_minima > 0
-      ? `<span class="badge badge-danger">${p.quantidade}</span>` : p.quantidade;
+    const qtdBadge = p.quantidade <= p.quantidade_minima && p.quantidade_minima > 0 ? `<span class="badge badge-danger">${p.quantidade}</span>` : p.quantidade;
 
     let acoes = '';
     if (currentUser?.perfil === 'usuario') {
       acoes = `<button class="btn btn-warning btn-sm" onclick="openMovModal('saida', ${p.id})">Baixa</button>`;
-    } else if (currentUser?.perfil === 'gestor') {
+    } else if (currentUser?.perfil === 'coordenador' || currentUser?.perfil === 'gestor') {
       acoes = `<button class="btn btn-primary btn-sm" onclick="editProduto(${p.id})">Editar</button>`;
     } else if (currentUser?.perfil === 'admin') {
       acoes = `<button class="btn btn-primary btn-sm" onclick="editProduto(${p.id})">Editar</button>
@@ -496,7 +627,7 @@ function renderProdutos() {
     return `<tr>
       <td><strong>${p.nome}</strong></td>
       <td><span class="badge badge-info">${p.categoria_nome || '-'}</span></td>
-      <td>${qtdBadge} ${p.unidade}</td>
+      <td>${qtdBadge} ${p.unidade}${p.unidades_por_caixa ? ` <small style="color: var(--text-light);">(${p.quantidade * p.unidades_por_caixa} UN)</small>` : ''}</td>
       <td>${p.quantidade_minima}</td>
       <td>${validade} ${validadeBadge}</td>
       <td>${p.lote || '-'}</td>
@@ -507,29 +638,26 @@ function renderProdutos() {
 
 const searchProduto = document.getElementById('searchProduto');
 if (searchProduto) searchProduto.addEventListener('input', renderProdutos);
-
 const filterCategoria = document.getElementById('filterCategoria');
 if (filterCategoria) filterCategoria.addEventListener('change', renderProdutos);
 
-
+// ==========================================
 // MOVIMENTAÇÕES
+// ==========================================
 async function loadMovimentacoes() {
   const movs = await api('/api/movimentacoes');
   if (!movs) return;
-  
   const tbody = document.getElementById('movTable');
   if (!tbody) return;
-  
   if (!movs.length) {
     tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 40px;">Sem movimentações</td></tr>';
     return;
   }
-  
   tbody.innerHTML = movs.map(m => `
     <tr>
       <td>${new Date(m.data_movimentacao).toLocaleString('pt-BR')}</td>
       <td><strong>${m.produto_nome}</strong></td>
-      <td><span class="badge ${m.tipo === 'entrada' ? 'badge-success' : 'badge-warning'}">${m.tipo === 'entrada' ? ' Entrada' : '📤 Saída'}</span></td>
+      <td><span class="badge ${m.tipo === 'entrada' ? 'badge-success' : 'badge-warning'}">${m.tipo === 'entrada' ? '📥 Entrada' : '📤 Saída'}</span></td>
       <td>${m.quantidade}</td>
       <td>${m.motivo || '-'}</td>
       <td>${m.usuario_nome || '-'}</td>
@@ -537,191 +665,143 @@ async function loadMovimentacoes() {
   `).join('');
 }
 
-function openMovModal(tipo, produtoId = null) {
+async function openMovModal(tipo, produtoId = null) {
+  // Garante que há produtos para listar antes de montar o select
+  if (!produtos || produtos.length === 0) {
+    produtos = (await api('/api/produtos')) || [];
+  }
+
   const modalTitle = document.getElementById('modalMovTitle');
   if (modalTitle) modalTitle.textContent = tipo === 'entrada' ? '📥 Entrada' : '📤 Saída';
-  
+
   const movTipo = document.getElementById('movTipo');
   if (movTipo) movTipo.value = tipo;
-  
+
   const form = document.getElementById('formMov');
   if (form) form.reset();
-  
+
   const sel = document.getElementById('movProduto');
   if (sel) {
-    sel.innerHTML = '<option value="">Selecione...</option>';
-    produtos.forEach(p => {
-      sel.innerHTML += `<option value="${p.id}">${p.nome} (estoque: ${p.quantidade})</option>`;
-    });
+    sel.innerHTML = '<option value="">Selecione o produto...</option>' +
+      produtos.map(p => `<option value="${p.id}">${p.nome} (estoque: ${p.quantidade} ${p.unidade})</option>`).join('');
     if (produtoId) sel.value = produtoId;
   }
-  
+
   const modal = document.getElementById('modalMov');
-  if (modal) modal.classList.add('active');
+  if (modal) {
+    modal.style.removeProperty('display');
+    modal.classList.add('active');
+  }
 }
 
 async function saveMov() {
   const tipo = document.getElementById('movTipo')?.value;
-  const data = {
-    produto_id: parseInt(document.getElementById('movProduto')?.value),
-    tipo,
-    quantidade: parseInt(document.getElementById('movQtd')?.value),
-    motivo: document.getElementById('movMotivo')?.value
-  };
-  
-  if (!data.produto_id || !data.quantidade) {
-    toast('Preencha produto e quantidade', 'error');
+  const produtoId = parseInt(document.getElementById('movProduto')?.value);
+  const quantidade = parseInt(document.getElementById('movQtd')?.value);
+  const motivo = document.getElementById('movMotivo')?.value;
+
+  if (!produtoId || !quantidade || quantidade <= 0) {
+    toast('Selecione o produto e informe uma quantidade válida', 'error');
     return;
   }
-  
+
+  // Feedback perceptível + trava contra duplo clique (que dispararia duas baixas)
+  const btn = document.querySelector('#modalMov .modal-footer .btn-primary');
+  const textoOriginal = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Registrando...'; }
+
   try {
-    await api('/api/movimentacoes', { method: 'POST', body: data });
-    toast(tipo === 'entrada' ? 'Entrada registrada' : 'Baixa registrada', 'success');
+    const resposta = await api('/api/movimentacoes', {
+      method: 'POST',
+      body: { produto_id: produtoId, tipo, quantidade, motivo }
+    });
+
+    // api() retorna null em erro — NUNCA mostrar sucesso nesse caso
+    if (!resposta || resposta.error) {
+      toast(resposta?.error || 'Erro ao registrar movimentação', 'error');
+      return;
+    }
+
+    toast(tipo === 'entrada' ? '📥 Entrada registrada com sucesso' : '📤 Baixa registrada com sucesso', 'success');
     closeModal('modalMov');
-    loadProdutos();
-    loadMovimentacoes();
+    await loadProdutos();
+    await loadMovimentacoes();
   } catch (e) {
-    toast(e.message, 'error');
+    toast(e.message || 'Erro ao registrar movimentação', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = textoOriginal; }
   }
 }
 
-// VENCIMENTOS
+// ==========================================
+// VENCIMENTOS & DETALHES
+// ==========================================
 async function loadVencimentos() {
   const [vencidos, vencendo] = await Promise.all([
     api('/api/produtos/vencidos'),
     api('/api/produtos/vencendo?dias=10')
   ]);
-  
   const vencidosTable = document.getElementById('vencidosTable');
   const vencendoTable = document.getElementById('vencendoTable');
   
   if (vencidosTable) {
-    vencidosTable.innerHTML = vencidos?.length
-      ? vencidos.map(p => `<tr>
-          <td><strong>${p.nome}</strong></td>
-          <td>${p.categoria_nome || '-'}</td>
-          <td>${formatDate(p.data_validade)}</td>
-          <td><span class="badge badge-danger">${p.dias_vencido}d</span></td>
-          <td><button class="btn btn-primary btn-sm" onclick="verDetalhesVencimento(${p.id})">Ver</button></td>
-        </tr>`).join('')
-      : '<tr><td colspan="5" class="text-center" style="padding: 20px;">✅ Nenhum vencido</td></tr>';
+    vencidosTable.innerHTML = vencidos?.length ? vencidos.map(p => `<tr><td><strong>${p.nome}</strong></td><td>${p.categoria_nome || '-'}</td><td>${formatDate(p.data_validade)}</td><td><span class="badge badge-danger">${p.dias_vencido}d</span></td><td><button class="btn btn-primary btn-sm" onclick="verDetalhesVencimento(${p.id})">Ver</button></td></tr>`).join('') : '<tr><td colspan="5" class="text-center" style="padding: 20px;">✅ Nenhum vencido</td></tr>';
   }
-  
   if (vencendoTable) {
-    vencendoTable.innerHTML = vencendo?.length
-      ? vencendo.map(p => `<tr>
-          <td><strong>${p.nome}</strong></td>
-          <td>${p.categoria_nome || '-'}</td>
-          <td>${formatDate(p.data_validade)}</td>
-          <td><span class="badge badge-warning">${p.dias_restantes}d</span></td>
-          <td><button class="btn btn-primary btn-sm" onclick="verDetalhesVencimento(${p.id})">Ver</button></td>
-        </tr>`).join('')
-      : '<tr><td colspan="5" class="text-center" style="padding: 20px;">✅ Nenhum próximo do vencimento</td></tr>';
+    vencendoTable.innerHTML = vencendo?.length ? vencendo.map(p => `<tr><td><strong>${p.nome}</strong></td><td>${p.categoria_nome || '-'}</td><td>${formatDate(p.data_validade)}</td><td><span class="badge badge-warning">${p.dias_restantes}d</span></td><td><button class="btn btn-primary btn-sm" onclick="verDetalhesVencimento(${p.id})">Ver</button></td></tr>`).join('') : '<tr><td colspan="5" class="text-center" style="padding: 20px;">✅ Nenhum próximo do vencimento</td></tr>';
   }
 }
 
-// DETALHES
-// ============ MODAL DE DETALHES ============
 async function verDetalhesVencimento(produtoId) {
-  console.log('Ver detalhes do produto:', produtoId);
-  
-  // Recarregar produtos se necessário
-  if (!produtos || produtos.length === 0) {
-    produtos = await api('/api/produtos');
-  }
-  
+  if (!produtos || produtos.length === 0) produtos = await api('/api/produtos');
   const produto = produtos.find(p => p.id === produtoId);
-  
-  if (!produto) {
-    console.error('Produto não encontrado:', produtoId);
-    toast('Produto não encontrado', 'error');
-    return;
-  }
-
-  console.log('Produto encontrado:', produto);
+  if (!produto) { toast('Produto não encontrado', 'error'); return; }
 
   const dias = produto.data_validade ? diasParaVencimento(produto.data_validade) : null;
-  let statusValidade = '';
+  let statusValidade = '<span class="badge badge-info">Sem validade definida</span>';
   if (dias !== null) {
     if (dias < 0) statusValidade = `<span class="badge badge-danger">VENCIDO há ${Math.abs(dias)} dia(s)</span>`;
     else if (dias <= 10) statusValidade = `<span class="badge badge-warning">Vence em ${dias} dia(s)</span>`;
     else statusValidade = `<span class="badge badge-success">Válido por mais ${dias} dia(s)</span>`;
-  } else {
-    statusValidade = '<span class="badge badge-info">Sem validade definida</span>';
   }
 
   const html = `
     <div style="display: grid; gap: 16px;">
-      <div>
-        <label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Nome do Produto</label>
-        <div style="font-size: 18px; font-weight: 600; margin-top: 4px;">${produto.nome}</div>
-      </div>
-      
+      <div><label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Nome do Produto</label><div style="font-size: 18px; font-weight: 600; margin-top: 4px;">${produto.nome}</div></div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-        <div>
-          <label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Categoria</label>
-          <div style="margin-top: 4px;"><span class="badge badge-info">${produto.categoria_nome || '-'}</span></div>
-        </div>
-        <div>
-          <label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Quantidade</label>
-          <div style="font-size: 18px; font-weight: 600; margin-top: 4px;">${produto.quantidade} ${produto.unidade}</div>
-        </div>
+        <div><label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Categoria</label><div style="margin-top: 4px;"><span class="badge badge-info">${produto.categoria_nome || '-'}</span></div></div>
+        <div><label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Quantidade</label><div style="font-size: 18px; font-weight: 600; margin-top: 4px;">${produto.quantidade} ${produto.unidade}</div></div>
       </div>
-
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-        <div>
-          <label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Data de Validade</label>
-          <div style="margin-top: 4px;">${produto.data_validade ? formatDate(produto.data_validade) : 'Não definida'}</div>
-        </div>
-        <div>
-          <label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Status</label>
-          <div style="margin-top: 4px;">${statusValidade}</div>
-        </div>
+        <div><label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Data de Validade</label><div style="margin-top: 4px;">${produto.data_validade ? formatDate(produto.data_validade) : 'Não definida'}</div></div>
+        <div><label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Status</label><div style="margin-top: 4px;">${statusValidade}</div></div>
       </div>
-
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-        <div>
-          <label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Lote</label>
-          <div style="font-size: 16px; font-weight: 500; margin-top: 4px; padding: 8px; background: var(--bg); border-radius: 6px;">${produto.lote || 'Não informado'}</div>
-        </div>
-        <div>
-          <label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Localização</label>
-          <div style="margin-top: 4px;">${produto.localizacao || 'Não informada'}</div>
-        </div>
+        <div><label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Lote</label><div style="font-size: 16px; font-weight: 500; margin-top: 4px; padding: 8px; background: var(--bg); border-radius: 6px;">${produto.lote || 'Não informado'}</div></div>
+        <div><label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Localização</label><div style="margin-top: 4px;">${produto.localizacao || 'Não informada'}</div></div>
       </div>
+    </div>`;
 
-      <div>
-        <label style="font-weight: 600; color: var(--text-light); font-size: 12px; text-transform: uppercase;">Quantidade Mínima</label>
-        <div style="margin-top: 4px;">${produto.quantidade_minima} ${produto.unidade}</div>
-      </div>
-    </div>
-  `;
-
-  const modalTitle = document.getElementById('modalVencimentoTitle');
   const modalBody = document.getElementById('modalVencimentoBody');
   const modal = document.getElementById('modalVencimento');
-  
-  if (modalTitle) modalTitle.textContent = 'Detalhes do Produto';
   if (modalBody) modalBody.innerHTML = html;
-  if (modal) {
-    modal.classList.add('active');
-    console.log('Modal aberto');
-  }
+  if (modal) modal.classList.add('active');
 }
 
+// ==========================================
 // USUÁRIOS
+// ==========================================
 async function loadUsuarios() {
   const users = await api('/api/users');
   if (!users) return;
-  
   const tbody = document.getElementById('usersTable');
   if (!tbody) return;
-  
   tbody.innerHTML = users.map(u => `
     <tr>
       <td><strong>${u.nome}</strong></td>
       <td>${u.username}</td>
       <td><span class="badge badge-primary">${u.perfil}</span></td>
+      <td><span>${u.unidade_nome || '-'}</span></td>
       <td><span class="badge ${u.ativo ? 'badge-success' : 'badge-danger'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
       <td>
         <button class="btn btn-primary btn-sm" onclick="editUser(${u.id})">Editar</button>
@@ -737,6 +817,7 @@ function openUserModal() {
   document.getElementById('userId').value = '';
   document.getElementById('userPassword').required = true;
   document.getElementById('passHint').textContent = '*';
+  loadUnidadesSelect('userUnidadeSelect'); // Carrega as unidades no select
   document.getElementById('modalUser').classList.add('active');
 }
 
@@ -754,6 +835,8 @@ async function editUser(id) {
   document.getElementById('userPassword').required = false;
   document.getElementById('passHint').textContent = '(deixe em branco para manter)';
   document.getElementById('userPerfilSelect').value = u.perfil;
+  
+  await loadUnidadesSelect('userUnidadeSelect', u.unidade_id);
   document.getElementById('modalUser').classList.add('active');
 }
 
@@ -763,17 +846,11 @@ async function saveUser() {
     nome: document.getElementById('userNome')?.value,
     username: document.getElementById('userUsername')?.value,
     perfil: document.getElementById('userPerfilSelect')?.value,
+    unidade_id: parseInt(document.getElementById('userUnidadeSelect')?.value),
     password: document.getElementById('userPassword')?.value
   };
-  
-  if (!data.nome || !data.username) {
-    toast('Preencha todos os campos', 'error');
-    return;
-  }
-  if (!id && !data.password) {
-    toast('Informe a senha', 'error');
-    return;
-  }
+  if (!data.nome || !data.username || !data.unidade_id) { toast('Preencha todos os campos e selecione a unidade', 'error'); return; }
+  if (!id && !data.password) { toast('Informe a senha', 'error'); return; }
   
   try {
     if (id) {
@@ -785,24 +862,142 @@ async function saveUser() {
     }
     closeModal('modalUser');
     loadUsuarios();
-  } catch (e) {
-    toast(e.message, 'error');
-  }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function deleteUser(id) {
-  if (!confirm('Desativar?')) return;
+  if (!confirm('Desativar este usuário?')) return;
   try {
     await api(`/api/users/${id}`, { method: 'DELETE' });
     toast('Usuário desativado', 'success');
     loadUsuarios();
-  } catch (e) {
-    toast(e.message, 'error');
-  }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
-// ============ BACKUP INTELIGENTE ============
+// ==========================================
+// UNIDADES
+// ==========================================
+async function loadUnidadesSelect(selectId, selectedId = null) {
+  try {
+    const unidades = await api('/api/unidades');
+    const select = document.getElementById(selectId);
+    if (select && unidades) {
+      select.innerHTML = '<option value="">Selecione a unidade...</option>' +
+        unidades.map(u => `<option value="${u.id}" ${selectedId == u.id ? 'selected' : ''}>${u.nome}</option>`).join('');
+    }
+  } catch (e) { console.error('Erro ao carregar unidades:', e); }
+}
 
+async function loadUnidades() {
+  const tbody = document.getElementById('tabelaUnidades');
+  if (!tbody) return;
+  try {
+    const unidades = await api('/api/unidades');
+    if (!unidades || unidades.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhuma unidade cadastrada.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = unidades.map(u => `
+      <tr>
+        <td>${u.id}</td>
+        <td><strong>${u.nome}</strong></td>
+        <td>${u.endereco || '-'}</td>
+        <td>${u.responsavel || '-'}</td>
+        <td><span class="badge ${u.ativo ? 'badge-success' : 'badge-danger'}">${u.ativo ? 'Ativa' : 'Inativa'}</span></td>
+        <td>
+          <button class="btn btn-sm btn-warning" onclick='editUnidade(${JSON.stringify(u)})'>Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteUnidade(${u.id})">Excluir</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (error) { console.error('Erro ao carregar unidades:', error); }
+}
+
+function openUnidadeModal() {
+  document.getElementById('modalUnidadeTitle').textContent = 'Nova Unidade';
+  document.getElementById('unidadeId').value = '';
+  document.getElementById('unidadeNome').value = '';
+  document.getElementById('unidadeTipoLogradouro').value = 'Rua';
+  document.getElementById('unidadeLogradouro').value = '';
+  document.getElementById('unidadeNumero').value = '';
+  document.getElementById('unidadeBairro').value = '';
+  document.getElementById('unidadeResponsavel').value = '';
+  document.getElementById('unidadeDescricao').value = '';
+  const modal = document.getElementById('modalUnidade');
+  if (modal) { modal.style.removeProperty('display'); modal.classList.add('active'); }
+}
+
+function editUnidade(unidade) {
+  document.getElementById('modalUnidadeTitle').textContent = 'Editar Unidade';
+  document.getElementById('unidadeId').value = unidade.id;
+  document.getElementById('unidadeNome').value = unidade.nome || '';
+  document.getElementById('unidadeTipoLogradouro').value = unidade.tipo_logradouro || 'Rua';
+  document.getElementById('unidadeLogradouro').value = unidade.logradouro || '';
+  document.getElementById('unidadeNumero').value = unidade.numero || '';
+  document.getElementById('unidadeBairro').value = unidade.bairro || '';
+  document.getElementById('unidadeResponsavel').value = unidade.responsavel || '';
+  document.getElementById('unidadeDescricao').value = unidade.descricao || '';
+  const modal = document.getElementById('modalUnidade');
+  if (modal) { modal.style.removeProperty('display'); modal.classList.add('active'); }
+}
+
+async function saveUnidade() {
+  const id = document.getElementById('unidadeId').value;
+  const data = {
+    nome: document.getElementById('unidadeNome').value,
+    tipo_logradouro: document.getElementById('unidadeTipoLogradouro').value,
+    logradouro: document.getElementById('unidadeLogradouro').value,
+    numero: document.getElementById('unidadeNumero').value,
+    bairro: document.getElementById('unidadeBairro').value,
+    responsavel: document.getElementById('unidadeResponsavel').value,
+    descricao: document.getElementById('unidadeDescricao').value,
+    ativo: 1
+  };
+  if (!data.nome) { toast('O nome da unidade é obrigatório!', 'error'); return; }
+  try {
+    if (id) { await api(`/api/unidades/${id}`, { method: 'PUT', body: data }); toast('Unidade atualizada!', 'success'); }
+    else { await api('/api/unidades', { method: 'POST', body: data }); toast('Unidade cadastrada!', 'success'); }
+    closeModal('modalUnidade');
+    loadUnidades();
+  } catch (e) { toast(e.message || 'Erro ao salvar unidade', 'error'); }
+}
+
+async function loadUnidades() {
+  const tbody = document.getElementById('tabelaUnidades');
+  if (!tbody) return;
+  try {
+    const unidades = await api('/api/unidades');
+    if (!unidades || unidades.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhuma unidade cadastrada.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = unidades.map(u => `
+      <tr>
+        <td>${u.id}</td>
+        <td><strong>${u.nome}</strong>${u.descricao ? `<br><small style="color:var(--text-light)">${u.descricao}</small>` : ''}</td>
+        <td>${u.endereco_completo || '-'}</td>
+        <td>${u.responsavel || '-'}</td>
+        <td><span class="badge ${u.ativo ? 'badge-success' : 'badge-danger'}">${u.ativo ? 'Ativa' : 'Inativa'}</span></td>
+        <td>
+          <button class="btn btn-sm btn-warning" onclick='editUnidade(${JSON.stringify(u)})'>Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteUnidade(${u.id})">Excluir</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) { console.error('Erro ao carregar unidades:', e); }
+}
+async function deleteUnidade(id) {
+  if (!confirm('Tem certeza que deseja excluir esta unidade?')) return;
+  try {
+    await api(`/api/unidades/${id}`, { method: 'DELETE' });
+    toast('Unidade excluída com sucesso!', 'success');
+    loadUnidades();
+  } catch (error) { toast(error.message || 'Erro ao excluir unidade', 'error'); }
+}
+
+// ==========================================
+// BACKUP INTELIGENTE
+// ==========================================
 let backupConfig = null;
 
 async function loadBackupConfig() {
@@ -816,9 +1011,9 @@ async function loadBackupConfig() {
   const inteligente = document.getElementById('backupInteligente');
   
   if (automatico) automatico.checked = backupConfig.automatico;
-  if (frequencia) frequencia.value = backupConfig.frequencia;
-  if (horario) horario.value = backupConfig.horario;
-  if (reter) reter.value = backupConfig.reter;
+  if (frequencia) frequencia.value = backupConfig.frequencia || 'dia';
+  if (horario) horario.value = backupConfig.horario || '02:00';
+  if (reter) reter.value = backupConfig.reter || 10;
   if (inteligente) inteligente.checked = backupConfig.inteligente;
 }
 
@@ -833,229 +1028,100 @@ async function salvarConfigBackup() {
   
   const result = await api('/api/backup-config', { method: 'PUT', body: data });
   if (result) {
-    toast('Configuração salva com sucesso!', 'success');
+    toast('Configuração de backup salva com sucesso!', 'success');
     loadBackupConfig();
     loadBackupStats();
   }
 }
 
-// ============ BACKUP INTELIGENTE BLINDADO============
 async function criarBackup() {
-  console.log("🔄 [FRONTEND] Iniciando backup manual...");
   try {
-    const r = await api('/api/backup', { method: 'POST', body: { forcar: false } });
-    
-    console.log("📦 [FRONTEND] Resposta COMPLETA do servidor:", r);
-    console.log("📦 [FRONTEND] r.sucesso =", r?.sucesso);
-    console.log("📦 [FRONTEND] r.filename =", r?.filename);
-    
-    if (!r) {
-      toast('Erro: servidor não respondeu', 'error');
-      return;
-    }
-    
-    // O backend retorna 'sucesso' (em português)
-    if (r.sucesso === true) {
-      const nomeArquivo = r.filename || r.nome || 'backup_realizado.db';
-      toast(`Backup criado: ${nomeArquivo}`, 'success');
-      
-      console.log("✅ Backup criado com sucesso! Recarregando em 1.5s...");
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-      
-    } else if (r.motivo === 'sem_alteracoes') {
-      toast('Nenhuma alteração detectada. Use "Forçar Backup" se necessário.', 'warning');
-    } else {
-      toast('Erro ao criar backup: ' + (r.erro || 'Desconhecido'), 'error');
-    }
-  } catch (error) {
-    console.error("❌ [FRONTEND] Erro na função criarBackup:", error);
-    toast('Erro inesperado: ' + error.message, 'error');
-  }
-}
-
-async function forcarBackup() {
-  if (!confirm('Forçar backup mesmo sem alterações?')) return;
-  
-  console.log("⚡ Forçando backup...");
-  try {
-    const r = await api('/api/backup/forcar', { method: 'POST' });
-    console.log("📦 Resposta do forçar backup:", r);
-    
+    toast('Gerando backup...', 'info');
+    const r = await api('/api/backup', { method: 'POST', body: { forcar: true } });
     if (r && r.sucesso) {
-      toast(`Backup forçado criado: ${r.filename}`, 'success');
-      console.log("⏳ Recarregando a página em 1 segundo...");
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      toast(`Backup criado: ${r.filename}`, 'success');
+      loadBackups();
+      loadBackupStats();
     } else {
-      toast('Erro ao forçar backup', 'error');
+      toast(r?.erro || 'Erro ao criar backup', 'error');
     }
-  } catch (error) {
-    console.error("❌ Erro na função forcarBackup:", error);
-    toast('Erro inesperado ao forçar backup', 'error');
-  }
-}
-
-async function restoreBackup(filename) {
-  if (!confirm(`Restaurar backup ${filename}?\n\n⚠️ ATENÇÃO: O banco de dados atual será substituído e a página será recarregada.`)) return;
-  
-  console.log("🔄 Restaurando backup:", filename);
-  try {
-    const r = await api('/api/restore', { method: 'POST', body: { filename } });
-    console.log("📦 Resposta da restauração:", r);
-    
-    // Nota: a rota de restore retorna "success" (em inglês) no server.js
-    if (r && r.success) { 
-      toast('Backup restaurado com sucesso! Recarregando...', 'success');
-      console.log("⏳ Recarregando a página em 1.5 segundos...");
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-    } else {
-      toast(r?.error || 'Erro ao restaurar', 'error');
-    }
-  } catch (error) {
-    console.error("❌ Erro na função restoreBackup:", error);
-    toast('Erro inesperado ao restaurar', 'error');
+  } catch (error) { 
+    toast('Erro inesperado: ' + error.message, 'error'); 
   }
 }
 
 async function loadBackupStats() {
   const stats = await api('/api/backup-stats');
   if (!stats) return;
-  
   const statsGrid = document.getElementById('backupStats');
   if (!statsGrid) return;
   
   statsGrid.innerHTML = `
-    <div class="stat-card">
-      <div class="label">Total de Backups</div>
-      <div class="value">${stats.totalBackups}</div>
-    </div>
-    <div class="stat-card success">
-      <div class="label">Tamanho Total</div>
-      <div class="value">${(stats.tamanhoTotal / 1024 / 1024).toFixed(2)} MB</div>
-    </div>
-    <div class="stat-card warning">
-      <div class="label">Último Backup</div>
-      <div class="value" style="font-size: 14px;">${stats.ultimoBackup ? new Date(stats.ultimoBackup).toLocaleString('pt-BR') : 'Nunca'}</div>
-    </div>
-    <div class="stat-card ${stats.automaticoAtivo ? 'success' : 'danger'}">
-      <div class="label">Backup Automático</div>
-      <div class="value" style="font-size: 18px;">${stats.automaticoAtivo ? '✅ Ativo' : '❌ Inativo'}</div>
-    </div>
+    <div class="stat-card"><div class="label">Total de Backups</div><div class="value">${stats.totalBackups}</div></div>
+    <div class="stat-card success"><div class="label">Tamanho Total</div><div class="value">${(stats.tamanhoTotal / 1024 / 1024).toFixed(2)} MB</div></div>
+    <div class="stat-card warning"><div class="label">Último Backup</div><div class="value" style="font-size: 14px;">${stats.ultimoBackup ? new Date(stats.ultimoBackup).toLocaleString('pt-BR') : 'Nunca'}</div></div>
+    <div class="stat-card ${stats.automaticoAtivo ? 'success' : 'danger'}"><div class="label">Backup Automático</div><div class="value" style="font-size: 18px;">${stats.automaticoAtivo ? '✅ Ativo' : '❌ Inativo'}</div></div>
   `;
 }
 
 async function loadBackups() {
-  console.log(' Carregando backups...');
-  
   try {
     const backups = await api('/api/backups');
-    console.log('📦 Backups recebidos:', backups);
-    
     const tbody = document.getElementById('backupsTable');
-    if (!tbody) {
-      console.error('❌ Elemento backupsTable não encontrado!');
-      return;
-    }
-    
+    if (!tbody) return;
     if (!backups || !Array.isArray(backups) || backups.length === 0) {
-      console.log('⚠️ Nenhum backup encontrado');
       tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="padding: 20px;">Nenhum backup disponível</td></tr>';
       return;
     }
-    
-    console.log(`✅ ${backups.length} backup(s) encontrado(s)`);
-    
     tbody.innerHTML = backups.map(b => {
-      const tipoBadge = b.tipo === 'automático' ? 'badge-info' : b.tipo === 'forçado' ? 'badge-warning' : 'badge-success';
+      const tipoBadge = b.tipo === 'automático' ? 'badge-info' : 'badge-success';
       const tamanho = b.size ? (b.size / 1024).toFixed(1) + ' KB' : '-';
       const data = b.date ? new Date(b.date).toLocaleString('pt-BR') : '-';
-      
-      return `
-        <tr>
-          <td><strong>${b.name}</strong></td>
-          <td><span class="badge ${tipoBadge}">${b.tipo || 'manual'}</span></td>
-          <td>${tamanho}</td>
-          <td>${data}</td>
-          <td>
-            <a href="/api/backups/${b.name}/download" class="btn btn-primary btn-sm" target="_blank">📥 Download</a>
-            <button class="btn btn-warning btn-sm" onclick="restoreBackup('${b.name}')">🔄 Restaurar</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteBackup('${b.name}')">🗑️ Excluir</button>
-          </td>
-        </tr>
-      `;
+      return `<tr>
+        <td><strong>${b.name}</strong></td>
+        <td><span class="badge ${tipoBadge}">${b.tipo || 'manual'}</span></td>
+        <td>${tamanho}</td>
+        <td>${data}</td>
+        <td>
+          <a href="/api/backups/${b.name}/download" class="btn btn-primary btn-sm" target="_blank">📥 Download</a>
+          <button class="btn btn-warning btn-sm" onclick="restoreBackup('${b.name}')">🔄 Restaurar</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteBackup('${b.name}')">🗑️ Excluir</button>
+        </td>
+      </tr>`;
     }).join('');
-    
-  } catch (error) {
-    console.error(' Erro ao carregar backups:', error);
-    const tbody = document.getElementById('backupsTable');
-    if (tbody) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="padding: 20px; color: var(--danger);">Erro ao carregar backups</td></tr>';
-    }
-  }
+  } catch (error) { console.error('Erro ao carregar backups:', error); }
 }
 
 async function restoreBackup(filename) {
-  if (!confirm(`Restaurar backup ${filename}? O banco atual será substituído.`)) return;
+  if (!confirm(`Restaurar backup ${filename}?\n\n⚠️ ATENÇÃO: O banco de dados atual será substituído.`)) return;
   try {
-    await api('/api/restore', { method: 'POST', body: { filename } });
-    toast('Backup restaurado! Recarregando...', 'success');
-    setTimeout(() => location.reload(), 1500);
-  } catch (e) {
-    toast(e.message, 'error');
-  }
+    const r = await api('/api/restore', { method: 'POST', body: { filename } });
+    if (r && r.success) { 
+      toast('Backup restaurado com sucesso! Recarregando...', 'success');
+      setTimeout(() => window.location.reload(), 1500);
+    } else { toast(r?.error || 'Erro ao restaurar', 'error'); }
+  } catch (error) { toast('Erro inesperado ao restaurar', 'error'); }
 }
 
 async function deleteBackup(filename) {
-  if (!confirm('Excluir este backup?')) return;
+  if (!confirm('Excluir este backup permanentemente?')) return;
   try {
     await api(`/api/backups/${filename}`, { method: 'DELETE' });
     toast('Backup excluído', 'success');
     loadBackups();
     loadBackupStats();
-  } catch (e) {
-    toast(e.message, 'error');
-  }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
-async function criarBackup() {
-  const r = await api('/api/backup', { method: 'POST' });
-  if (r) {
-    toast(`Backup criado: ${r.filename}`, 'success');
-    loadBackups();
-  }
-}
-
-async function restoreBackup(filename) {
-  if (!confirm(`Restaurar ${filename}?`)) return;
-  try {
-    await api('/api/restore', { method: 'POST', body: { filename } });
-    toast('Backup restaurado! Recarregue...', 'success');
-    setTimeout(() => location.reload(), 1500);
-  } catch (e) {
-    toast(e.message, 'error');
-  }
-}
-
-async function deleteBackup(filename) {
-  if (!confirm('Excluir?')) return;
-  try {
-    await api(`/api/backups/${filename}`, { method: 'DELETE' });
-    toast('Backup excluído', 'success');
-    loadBackups();
-  } catch (e) {
-    toast(e.message, 'error');
-  }
-}
-
-// UTILS
+// ==========================================
+// PRODUTOS (CRUD)
+// ==========================================
 function closeModal(id) {
   const modal = document.getElementById(id);
-  if (modal) modal.classList.remove('active');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = ('display');
+  }
 }
 
 function formatDate(d) {
@@ -1065,328 +1131,202 @@ function formatDate(d) {
 }
 
 function diasParaVencimento(data) {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const venc = new Date(data + 'T00:00:00');
   return Math.floor((venc - hoje) / (1000 * 60 * 60 * 24));
 }
 
-// Fechar modal clicando fora
 document.querySelectorAll('.modal-overlay').forEach(m => {
-  m.addEventListener('click', (e) => {
-    if (e.target === m) m.classList.remove('active');
-  });
+  m.addEventListener('click', (e) => { if (e.target === m) closeModal(m.id); });
 });
 
-// MOSTRAR/ESCONDER CAMPOS POR CATEGORIA
 function toggleCamposCategoria() {
   const categoriaId = document.getElementById('prodCategoria')?.value;
   const categoria = categorias.find(c => c.id == categoriaId);
-  
   const camposPermanente = document.getElementById('camposPermanente');
   const camposValidadeLote = document.getElementById('camposValidadeLote');
-  
   if (!camposPermanente || !camposValidadeLote) return;
   
   if (categoria && categoria.tipo === 'permanente') {
     camposPermanente.style.display = 'block';
     camposValidadeLote.style.display = 'none';
-    
-    const prodValidade = document.getElementById('prodValidade');
-    const prodLote = document.getElementById('prodLote');
-    if (prodValidade) prodValidade.value = '';
-    if (prodLote) prodLote.value = '';
+    if (document.getElementById('prodValidade')) document.getElementById('prodValidade').value = '';
+    if (document.getElementById('prodLote')) document.getElementById('prodLote').value = '';
   } else {
     camposPermanente.style.display = 'none';
     camposValidadeLote.style.display = 'block';
-    
-    const prodMarca = document.getElementById('prodMarca');
-    const prodModelo = document.getElementById('prodModelo');
-    const prodPatrimonio = document.getElementById('prodPatrimonio');
-    if (prodMarca) prodMarca.value = '';
-    if (prodModelo) prodModelo.value = '';
-    if (prodPatrimonio) prodPatrimonio.value = '';
+    if (document.getElementById('prodMarca')) document.getElementById('prodMarca').value = '';
+    if (document.getElementById('prodModelo')) document.getElementById('prodModelo').value = '';
+    if (document.getElementById('prodPatrimonio')) document.getElementById('prodPatrimonio').value = '';
+  }
+}
+// ============ MOSTRAR/ESCONDER CAMPO "UNIDADES POR CAIXA" ============
+function toggleUnidadesPorCaixa() {
+  const unidade = document.getElementById('prodUnidade')?.value || '';
+  const grupo = document.getElementById('grupoUnidadesPorCaixa');
+  const input = document.getElementById('prodUnidadesPorCaixa');
+  if (!grupo || !input) return;
+  const ehCaixaOuFardo = unidade.startsWith('CX') || unidade === 'FD';
+  if (ehCaixaOuFardo) {
+    grupo.style.display = 'block';
+    const label = grupo.querySelector('label');
+    if (label) label.textContent = unidade === 'FD' ? '📦 Unidades por Fardo *' : '📦 Unidades por Caixa *';
+  } else {
+    grupo.style.display = 'none';
+    input.value = '';
   }
 }
 
-// ============ ABRIR MODAL DE NOVO PRODUTO (CORRIGIDO) ============
+// ============ MOSTRAR/ESCONDER CAMPO "UNIDADE DE SAÚDE" (só Admin) ============
+function toggleCampoUnidadeSaude() {
+  const grupo = document.getElementById('grupoUnidadeSaude');
+  if (!grupo) return;
+  if (currentUser && currentUser.perfil === 'admin') {
+    grupo.style.display = 'block';
+    loadUnidadesSelect('prodUnidadeSaude');
+  } else {
+    grupo.style.display = 'none';
+  }
+}
 function openProdutoModal() {
-  const modalTitle = document.getElementById('modalProdutoTitle');
-  const form = document.getElementById('formProduto');
-  const prodId = document.getElementById('prodId');
-  const prodQtd = document.getElementById('prodQtd');
-  const prodQtdMin = document.getElementById('prodQtdMin');
-  const prodUnidade = document.getElementById('prodUnidade');
-  const modal = document.getElementById('modalProduto');
+  document.getElementById('modalProdutoTitle').textContent = 'Novo Produto';
+  document.getElementById('formProduto').reset();
+  document.getElementById('prodId').value = '';
+  document.getElementById('prodQtd').value = '0';
+  document.getElementById('prodQtdMin').value = '0';
+  document.getElementById('prodUnidade').value = 'UN';
+  document.getElementById('prodUnidadesPorCaixa').value = '';
+  document.getElementById('prodDescricao').value = '';
+  document.getElementById('prodValidade').value = '';
 
-  if (modalTitle) modalTitle.textContent = 'Novo Produto';
-  if (form) form.reset();
-  if (prodId) prodId.value = '';
-  if (prodQtd) prodQtd.value = '0';
-  if (prodQtdMin) prodQtdMin.value = '0';
-  if (prodUnidade) prodUnidade.value = 'UN';
-  
-  // ✅ CORREÇÃO: Removemos as linhas que forçavam a exibição errada.
-  // Agora chamamos a função que verifica a categoria selecionada e ajusta os campos.
-  if (typeof toggleCamposCategoria === 'function') {
-    setTimeout(toggleCamposCategoria, 50); // Pequeno delay para garantir que o reset() terminou
+  toggleCampoUnidadeSaude();
+  if (currentUser && currentUser.perfil === 'admin') {
+    const sel = document.getElementById('prodUnidadeSaude');
+    if (sel) sel.value = currentUser.unidade_id;
   }
-  
-  if (modal) modal.classList.add('active');
+  toggleUnidadesPorCaixa();
+  if (typeof toggleCamposCategoria === 'function') setTimeout(toggleCamposCategoria, 50);
+  const modal = document.getElementById('modalProduto');
+  if (modal) { modal.style.removeProperty('display'); modal.classList.add('active'); }
 }
 
-// ============ EDITAR PRODUTO (CORRIGIDO) ============
 function editProduto(id) {
   const p = produtos.find(x => x.id === id);
   if (!p) return;
-  
-  const modalTitle = document.getElementById('modalProdutoTitle');
-  if (modalTitle) modalTitle.textContent = 'Editar Produto';
-  
-  const setVal = (elementId, value) => {
-    const el = document.getElementById(elementId);
-    if (el) el.value = value || '';
+  document.getElementById('modalProdutoTitle').textContent = 'Editar Produto';
+  const setVal = (elId, v) => { const el = document.getElementById(elId); if (el) el.value = v || ''; };
+
+  setVal('prodId', p.id); setVal('prodNome', p.nome); setVal('prodCategoria', p.categoria_id);
+  setVal('prodUnidade', p.unidade || 'UN'); setVal('prodQtd', p.quantidade || 0);
+  setVal('prodQtdMin', p.quantidade_minima || 0); setVal('prodLocal', p.localizacao);
+  setVal('prodMarca', p.marca); setVal('prodModelo', p.modelo); setVal('prodPatrimonio', p.patrimonio);
+  setVal('prodValidade', dataISOParaBR(p.data_validade));   // ← converte AAAA-MM-DD para DD/MM/AAAA
+  setVal('prodLote', p.lote);
+  setVal('prodUnidadesPorCaixa', p.unidades_por_caixa || '');
+  setVal('prodDescricao', p.descricao || '');
+
+  toggleCampoUnidadeSaude();
+  if (currentUser && currentUser.perfil === 'admin') {
+    setTimeout(() => { const sel = document.getElementById('prodUnidadeSaude'); if (sel) sel.value = p.unidade_id; }, 200);
+  }
+  toggleUnidadesPorCaixa();
+  if (typeof toggleCamposCategoria === 'function') setTimeout(toggleCamposCategoria, 50);
+  const modal = document.getElementById('modalProduto');
+  if (modal) { modal.style.removeProperty('display'); modal.classList.add('active'); }
+}
+
+async function saveProduto() {
+  const id = document.getElementById('prodId')?.value;
+  const categoriaId = document.getElementById('prodCategoria')?.value;
+  const categoria = categorias.find(c => c.id == categoriaId);
+  const getVal = (elId) => { const el = document.getElementById(elId); return el ? el.value : null; };
+  const unidadeMedida = getVal('prodUnidade') || 'UN';
+
+  const data = {
+    nome: getVal('prodNome'), categoria_id: categoriaId, unidade: unidadeMedida,
+    quantidade: parseInt(getVal('prodQtd')) || 0, quantidade_minima: parseInt(getVal('prodQtdMin')) || 0,
+    localizacao: getVal('prodLocal'), data_validade: null, lote: null, marca: null, modelo: null,
+    patrimonio: null, unidades_por_caixa: null, unidade_id: null, descricao: getVal('prodDescricao') || null
   };
 
-  setVal('prodId', p.id);
-  setVal('prodNome', p.nome);
-  setVal('prodCategoria', p.categoria_id);
-  setVal('prodUnidade', p.unidade || 'UN');
-  setVal('prodQtd', p.quantidade || 0);
-  setVal('prodQtdMin', p.quantidade_minima || 0);
-  setVal('prodLocal', p.localizacao);
-  setVal('prodMarca', p.marca);
-  setVal('prodModel', p.modelo);
-  setVal('prodPatrimonio', p.patrimonio);
-  setVal('prodValidade', p.data_validade);
-  setVal('prodLote', p.lote);
-  
-  // ✅ CORREÇÃO: Garante que os campos corretos apareçam ao editar
-  if (typeof toggleCamposCategoria === 'function') {
-    setTimeout(toggleCamposCategoria, 50);
+  if (currentUser && currentUser.perfil === 'admin') {
+    const selUnid = document.getElementById('prodUnidadeSaude')?.value;
+    if (!selUnid) { toast('Selecione a unidade de saúde do produto', 'error'); return; }
+    data.unidade_id = parseInt(selUnid);
   }
-  
-  const modal = document.getElementById('modalProduto');
-  if (modal) modal.classList.add('active');
+
+  if (unidadeMedida.startsWith('CX') || unidadeMedida === 'FD') {
+    const upc = parseInt(getVal('prodUnidadesPorCaixa'));
+    if (!upc || upc < 1) { toast('Informe quantas unidades tem por caixa/fardo', 'error'); return; }
+    data.unidades_por_caixa = upc;
+  }
+
+  if (categoria && categoria.tipo === 'permanente') {
+    data.marca = getVal('prodMarca') || null; data.modelo = getVal('prodModelo') || null; data.patrimonio = getVal('prodPatrimonio') || null;
+  } else {
+    data.data_validade = dataBRparaISO(getVal('prodValidade'));  // ← converte DD/MM/AAAA para AAAA-MM-DD
+    data.lote = getVal('prodLote') || null;
+  }
+
+  if (!data.nome || !data.categoria_id) { toast('Preencha nome e categoria', 'error'); return; }
+
+  try {
+    if (id && id !== '' && id !== 'undefined') {
+      const r = await api(`/api/produtos/${id}`, { method: 'PUT', body: data });
+      if (r && !r.error) { toast('Produto atualizado!', 'success'); closeModal('modalProduto'); loadProdutos(); }
+      else toast('Erro ao atualizar produto', 'error');
+    } else {
+      const r = await api('/api/produtos', { method: 'POST', body: data });
+      if (r && !r.error) { toast('Produto cadastrado!', 'success'); closeModal('modalProduto'); loadProdutos(); }
+      else toast('Erro ao cadastrar: ' + (r?.error || 'Verifique os dados'), 'error');
+    }
+  } catch (e) { toast('Erro ao salvar: ' + (e.message || 'Desconhecido'), 'error'); }
 }
-// DELETAR PRODUTO
+
 async function deleteProduto(id) {
-  if (!confirm('Excluir?')) return;
+  if (!confirm('Excluir este produto?')) return;
   try {
     await api(`/api/produtos/${id}`, { method: 'DELETE' });
     toast('Produto excluído', 'success');
     loadProdutos();
-  } catch (e) {
-    toast(e.message, 'error');
-  }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
-// SALVAR PRODUTO
-
-async function saveProduto() {
-  console.log('💾 [FRONTEND] Iniciando salvamento do produto...');
-  
-  const id = document.getElementById('prodId')?.value;
-  const categoriaId = document.getElementById('prodCategoria')?.value;
-  const categoria = categorias.find(c => c.id == categoriaId);
-  
-  const getVal = (elementId) => {
-    const el = document.getElementById(elementId);
-    return el ? el.value : null;
-  };
-
-  const data = {
-    nome: getVal('prodNome'),
-    categoria_id: categoriaId,
-    unidade: getVal('prodUnidade') || 'UN',
-    quantidade: parseInt(getVal('prodQtd')) || 0,
-    quantidade_minima: parseInt(getVal('prodQtdMin')) || 0,
-    localizacao: getVal('prodLocal'),
-    data_validade: null,
-    lote: null,
-    marca: null,
-    modelo: null,
-    patrimonio: null
-  };
-  
-  if (categoria && categoria.tipo === 'permanente') {
-    data.marca = getVal('prodMarca') || null;
-    data.modelo = getVal('prodModelo') || null;
-    data.patrimonio = getVal('prodPatrimonio') || null;
-  } else {
-    data.data_validade = getVal('prodValidade') || null;
-    data.lote = getVal('prodLote') || null;
-  }
-  
-  if (!data.nome || !data.categoria_id) {
-    toast('Preencha nome e categoria', 'error');
-    return;
-  }
-  
-  try {
-    if (id && id !== '' && id !== 'undefined') {
-      console.log(`✏️ Atualizando produto ID: ${id}`);
-      const response = await api(`/api/produtos/${id}`, { method: 'PUT', body: data });
-      console.log('📤 Resposta da API (PUT):', response);
-      
-      // Condição flexível: aceita se tiver 'id' OU se tiver 'success'
-      if (response && (response.id !== undefined || response.success === true)) {
-        toast('Produto atualizado com sucesso!', 'success');
-        closeModal('modalProduto');
-        loadProdutos();
-      } else {
-        console.warn('⚠️ Resposta inesperada na atualização:', response);
-        toast('Erro ao atualizar produto', 'error');
-      }
-      
-    } else {
-      console.log('➕ Criando novo produto');
-      const response = await api('/api/produtos', { method: 'POST', body: data });
-      console.log('📤 Resposta da API (POST):', response);
-      
-      // CORREÇÃO PRINCIPAL: Aceita o sucesso se a resposta existir e não tiver propriedade 'error'
-      // ou se tiver o 'id' (mesmo que seja 0, que é falsy em JS, mas válido no SQLite as vezes)
-      if (response && !response.error) {
-        toast('Produto cadastrado com sucesso!', 'success');
-        closeModal('modalProduto'); // <-- Isso agora vai funcionar
-        loadProdutos();             // <-- Isso vai atualizar a tabela na hora
-      } else {
-        console.error('❌ O servidor recusou o cadastro. Resposta:', response);
-        toast('Erro ao cadastrar produto: ' + (response?.error || 'Verifique os dados'), 'error');
-      }
-    }
-  } catch (e) {
-    console.error('❌ Erro de rede ou sistema ao salvar produto:', e);
-    toast('Erro ao salvar: ' + (e.message || 'Erro desconhecido'), 'error');
-  }
-}
-
-// Inicialização
-document.addEventListener('DOMContentLoaded', function() {
-  initTheme();
-  
-  const themeToggle = document.getElementById('themeToggle');
-  if (themeToggle) {
-    themeToggle.addEventListener('click', toggleTheme);
-  }
-  
-  // Adicionar listener para mudança de categoria no modal de produto
-  const prodCategoria = document.getElementById('prodCategoria');
-  if (prodCategoria) {
-    prodCategoria.addEventListener('change', toggleCamposCategoria);
-  }
-});
-
-// Verifica backup automático a cada 30 segundos
-setInterval(async () => {
-  try {
-    const r = await fetch('/refresh.txt?t=' + Date.now(), { cache: 'no-store' });
-    if (r.ok) {
-      const novoSinal = await r.text();
-      const sinalAntigo = localStorage.getItem('lastRefreshSignal');
-      
-      // Só recarrega se o sinal for DIFERENTE (novo backup)
-      if (novoSinal && novoSinal !== sinalAntigo) {
-        console.log('🔄 Novo backup detectado:', novoSinal);
-        localStorage.setItem('lastRefreshSignal', novoSinal);
-        
-        // Aguarda 3 segundos antes de recarregar (garante que o servidor terminou tudo)
-        setTimeout(() => {
-          console.log('🔄 Recarregando página...');
-          location.reload();
-        }, 3000);
-      }
-    }
-  } catch(e) {
-    // Silencioso
-  }
-}, 30000); // Verifica a cada 30 segundos
-
-// ============ DASHBOARD - FAIXAS DE VENCIMENTO ============
-async function loadFaixasVencimento() {
-  try {
-    const produtos = await api('/api/produtos');
-    if (!produtos) return;
-    
-    const faixas = {
-      maior_120: produtos.filter(p => p.data_validade && diasParaVencimento(p.data_validade) > 120),
-      ate_90: produtos.filter(p => p.data_validade && diasParaVencimento(p.data_validade) <= 90 && diasParaVencimento(p.data_validade) > 60),
-      ate_60: produtos.filter(p => p.data_validade && diasParaVencimento(p.data_validade) <= 60 && diasParaVencimento(p.data_validade) > 30),
-      ate_30: produtos.filter(p => p.data_validade && diasParaVencimento(p.data_validade) <= 30 && diasParaVencimento(p.data_validade) >= 0)
-    };
-    
-    const elementos = {
-      'countMaior120': faixas.maior_120.length,
-      'countAte90': faixas.ate_90.length,
-      'countAte60': faixas.ate_60.length,
-      'countAte30': faixas.ate_30.length
-    };
-    
-    Object.keys(elementos).forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = elementos[id];
-    });
-    
-    window.faixasVencimento = faixas;
-    
-  } catch (e) {
-    console.error('Erro ao carregar faixas:', e);
-  }
-}
-
-function verProdutosFaixa(faixa) {
-  const faixas = window.faixasVencimento;
-  if (!faixas) return;
-  
-  const titulos = {
-    'maior_120': 'Produtos >120 dias (Longo prazo)',
-    'ate_90': 'Produtos ≤90 dias (Atenção)',
-    'ate_60': 'Produtos ≤60 dias (Urgente)',
-    'ate_30': 'Produtos ≤30 dias (Crítico)'
-  };
-  
-  const produtos = faixas[faixa] || [];
-  
-  document.getElementById('modalFaixaTitle').textContent = titulos[faixa];
-  
-  const tbody = document.getElementById('tabelaProdutosFaixa');
-  tbody.innerHTML = produtos.length ? produtos.map(p => `
-    <tr>
-      <td><strong>${p.nome}</strong></td>
-      <td>${p.categoria_nome || '-'}</td>
-      <td>${p.lote || '-'}</td>
-      <td>${formatDate(p.data_validade)}</td>
-      <td><span class="badge ${diasParaVencimento(p.data_validade) <= 30 ? 'badge-danger' : diasParaVencimento(p.data_validade) <= 60 ? 'badge-warning' : 'badge-success'}">${diasParaVencimento(p.data_validade)} dias</span></td>
-      <td>${p.quantidade} ${p.unidade}</td>
-    </tr>
-  `).join('') : '<tr><td colspan="6" class="text-center" style="padding: 20px;">Nenhum produto</td></tr>';
-  
-  document.getElementById('modalProdutosFaixa').classList.add('active');
-}
-
-// ============ RELATÓRIOS ============
+/// ==========================================
+// RELATÓRIOS (versão blindada contra elementos ausentes)
+// ==========================================
 let tipoRelatorioAtual = null;
+
+// Helpers seguros — nunca lançam erro se o elemento não existir
+function _show(id, visible) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = visible ? 'block' : 'none';
+}
+function _val(id) {
+  const el = document.getElementById(id);
+  return el ? el.value : '';
+}
+function _set(id, texto) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = texto;
+}
 
 function selecionarRelatorio(tipo) {
   tipoRelatorioAtual = tipo;
-  
-  document.getElementById('cardRelProdutos').classList.toggle('active', tipo === 'produtos');
-  document.getElementById('cardRelMovimentacoes').classList.toggle('active', tipo === 'movimentacoes');
-  
-  document.getElementById('filtrosRelatorio').style.display = 'block';
-  
-  if (tipo === 'movimentacoes') {
-    document.getElementById('filtroDataInicio').style.display = 'block';
-    document.getElementById('filtroDataFim').style.display = 'block';
-    document.getElementById('filtroTipo').style.display = 'block';
-  } else {
-    document.getElementById('filtroDataInicio').style.display = 'none';
-    document.getElementById('filtroDataFim').style.display = 'none';
-    document.getElementById('filtroTipo').style.display = 'none';
-  }
-  
+
+  const cardProd = document.getElementById('cardRelProdutos');
+  const cardMov = document.getElementById('cardRelMovimentacoes');
+  if (cardProd) cardProd.classList.toggle('active', tipo === 'produtos');
+  if (cardMov) cardMov.classList.toggle('active', tipo === 'movimentacoes');
+
+  _show('filtrosRelatorio', true);
+  const ehMov = tipo === 'movimentacoes';
+  _show('filtroDataInicio', ehMov);
+  _show('filtroDataFim', ehMov);
+  _show('filtroTipo', ehMov);
+
   loadCategoriasRelatorio();
-  document.getElementById('resultadoRelatorio').style.display = 'none';
+  _show('resultadoRelatorio', false);
 }
 
 async function loadCategoriasRelatorio() {
@@ -1399,24 +1339,21 @@ async function loadCategoriasRelatorio() {
 }
 
 function limparFiltros() {
-  document.getElementById('relCategoria').value = 'todos';
-  document.getElementById('relDataInicio').value = '';
-  document.getElementById('relDataFim').value = '';
-  document.getElementById('relTipo').value = 'todos';
-  document.getElementById('resultadoRelatorio').style.display = 'none';
+  const cat = document.getElementById('relCategoria'); if (cat) cat.value = 'todos';
+  const di = document.getElementById('relDataInicio'); if (di) di.value = '';
+  const df = document.getElementById('relDataFim'); if (df) df.value = '';
+  const tp = document.getElementById('relTipo'); if (tp) tp.value = 'todos';
+  _show('resultadoRelatorio', false);
 }
 
 async function gerarRelatorio() {
-  if (!tipoRelatorioAtual) {
-    toast('Selecione o tipo de relatório', 'warning');
-    return;
-  }
-  
-  const categoria = document.getElementById('relCategoria').value;
-  const dataInicio = document.getElementById('relDataInicio').value;
-  const dataFim = document.getElementById('relDataFim').value;
-  const tipo = document.getElementById('relTipo').value;
-  
+  if (!tipoRelatorioAtual) { toast('Selecione o tipo de relatório', 'warning'); return; }
+
+  const categoria = _val('relCategoria') || 'todos';
+  const dataInicio = _val('relDataInicio');
+  const dataFim = _val('relDataFim');
+  const tipo = _val('relTipo') || 'todos';
+
   try {
     let url = '';
     if (tipoRelatorioAtual === 'produtos') {
@@ -1427,93 +1364,103 @@ async function gerarRelatorio() {
       if (dataFim) url += `&data_fim=${dataFim}`;
       if (tipo !== 'todos') url += `&tipo=${tipo}`;
     }
-    
+
     const dados = await api(url);
     if (!dados) return;
-    
-    document.getElementById('resultadoRelatorio').style.display = 'block';
-    
-    const titulo = tipoRelatorioAtual === 'produtos' ? 'Relatório de Produtos' : 'Relatório de Movimentações';
-    document.getElementById('tituloRelatorio').textContent = titulo;
-    
-    let subtitulo = `Categoria: ${categoria === 'todos' ? 'Todas' : document.getElementById('relCategoria').options[document.getElementById('relCategoria').selectedIndex].text}`;
+
+    _show('resultadoRelatorio', true);
+    _set('tituloRelatorio', tipoRelatorioAtual === 'produtos' ? 'Relatório de Produtos' : 'Relatório de Movimentações');
+
+    const catSel = document.getElementById('relCategoria');
+    const catNome = (categoria === 'todos' || !catSel) ? 'Todas' : (catSel.options[catSel.selectedIndex]?.text || 'Todas');
+    let subtitulo = `Categoria: ${catNome}`;
     if (dataInicio) subtitulo += ` | Período: ${formatDate(dataInicio)} a ${formatDate(dataFim)}`;
-    document.getElementById('subtituloRelatorio').textContent = subtitulo;
-    document.getElementById('dataGeracao').textContent = new Date().toLocaleString('pt-BR');
-    
+    _set('subtituloRelatorio', subtitulo);
+    _set('dataGeracao', new Date().toLocaleString('pt-BR'));
+
     const statsGrid = document.getElementById('statsRelatorio');
-    if (tipoRelatorioAtual === 'produtos') {
-      statsGrid.innerHTML = `
-        <div class="stat-card"><div class="label">Total</div><div class="value">${dados.stats.total}</div></div>
-        <div class="stat-card success"><div class="label">Com Estoque</div><div class="value">${dados.stats.com_estoque}</div></div>
-        <div class="stat-card danger"><div class="label">Vencidos</div><div class="value">${dados.stats.vencidos}</div></div>
-        <div class="stat-card warning"><div class="label">Críticos</div><div class="value">${dados.stats.criticos}</div></div>
-      `;
-    } else {
-      statsGrid.innerHTML = `
-        <div class="stat-card"><div class="label">Total</div><div class="value">${dados.stats.total}</div></div>
-        <div class="stat-card success"><div class="label">Entradas</div><div class="value">${dados.stats.entradas}</div></div>
-        <div class="stat-card warning"><div class="label">Saídas</div><div class="value">${dados.stats.saidas}</div></div>
-        <div class="stat-card"><div class="label">Total Entradas (un)</div><div class="value">${dados.stats.total_entradas}</div></div>
-      `;
+    if (statsGrid) {
+      statsGrid.innerHTML = tipoRelatorioAtual === 'produtos'
+        ? `<div class="stat-card"><div class="label">Total</div><div class="value">${dados.stats.total}</div></div>
+           <div class="stat-card success"><div class="label">Com Estoque</div><div class="value">${dados.stats.com_estoque}</div></div>
+           <div class="stat-card danger"><div class="label">Vencidos</div><div class="value">${dados.stats.vencidos}</div></div>
+           <div class="stat-card warning"><div class="label">Críticos</div><div class="value">${dados.stats.criticos}</div></div>`
+        : `<div class="stat-card"><div class="label">Total</div><div class="value">${dados.stats.total}</div></div>
+           <div class="stat-card success"><div class="label">Entradas</div><div class="value">${dados.stats.entradas}</div></div>
+           <div class="stat-card warning"><div class="label">Saídas</div><div class="value">${dados.stats.saidas}</div></div>
+           <div class="stat-card"><div class="label">Total Entradas (un)</div><div class="value">${dados.stats.total_entradas}</div></div>`;
     }
-    
+
     const thead = document.getElementById('theadRelatorio');
     const tbody = document.getElementById('tbodyRelatorio');
-    
+
     if (tipoRelatorioAtual === 'produtos') {
-      thead.innerHTML = '<tr><th>Produto</th><th>Categoria</th><th>Qtd</th><th>Un</th><th>Validade</th><th>Dias</th><th>Status</th></tr>';
-      tbody.innerHTML = dados.produtos.map(p => `
-        <tr>
-          <td><strong>${p.nome}</strong>${p.marca ? `<br><small>${p.marca} ${p.modelo}</small>` : ''}${p.patrimonio ? `<br><small>Pat: ${p.patrimonio}</small>` : ''}</td>
-          <td>${p.categoria_nome || '-'}</td>
-          <td>${p.quantidade}</td>
-          <td>${p.unidade}</td>
-          <td>${p.data_validade ? formatDate(p.data_validade) : '-'}</td>
-          <td>${p.dias_restantes !== null ? p.dias_restantes + ' dias' : '-'}</td>
-          <td><span class="badge ${p.status.includes('Crítico') || p.status.includes('Vencido') ? 'badge-danger' : p.status.includes('Urgente') ? 'badge-warning' : p.status.includes('Atenção') ? 'badge-info' : 'badge-success'}">${p.status}</span></td>
-        </tr>
-      `).join('');
+      if (thead) thead.innerHTML = '<tr><th>Produto</th><th>Categoria</th><th>Qtd</th><th>Un</th><th>Validade</th><th>Dias</th><th>Status</th></tr>';
+      if (tbody) tbody.innerHTML = (dados.produtos || []).map(p => `<tr>
+        <td><strong>${p.nome}</strong>${p.marca ? `<br><small>${p.marca} ${p.modelo || ''}</small>` : ''}${p.patrimonio ? `<br><small>Pat: ${p.patrimonio}</small>` : ''}</td>
+        <td>${p.categoria_nome || '-'}</td>
+        <td>${p.quantidade}</td>
+        <td>${p.unidade}</td>
+        <td>${p.data_validade ? formatDate(p.data_validade) : '-'}</td>
+        <td>${(p.dias_restantes !== null && p.dias_restantes !== undefined) ? p.dias_restantes + ' dias' : '-'}</td>
+        <td><span class="badge ${(p.status||'').includes('Crítico') || (p.status||'').includes('Vencido') ? 'badge-danger' : (p.status||'').includes('Urgente') ? 'badge-warning' : (p.status||'').includes('Atenção') ? 'badge-info' : 'badge-success'}">${p.status || '-'}</span></td>
+      </tr>`).join('');
     } else {
-      thead.innerHTML = '<tr><th>Data/Hora</th><th>Produto</th><th>Categoria</th><th>Tipo</th><th>Qtd</th><th>Motivo</th><th>Usuário</th></tr>';
-      tbody.innerHTML = dados.movimentacoes.map(m => `
-        <tr>
-          <td>${new Date(m.data_movimentacao).toLocaleString('pt-BR')}</td>
-          <td><strong>${m.produto_nome}</strong></td>
-          <td>${m.categoria_nome || '-'}</td>
-          <td><span class="badge ${m.tipo === 'entrada' ? 'badge-success' : 'badge-warning'}">${m.tipo === 'entrada' ? 'Entrada' : 'Saída'}</span></td>
-          <td>${m.quantidade}</td>
-          <td>${m.motivo || '-'}</td>
-          <td>${m.usuario_nome || '-'}</td>
-        </tr>
-      `).join('');
+      if (thead) thead.innerHTML = '<tr><th>Data/Hora</th><th>Produto</th><th>Categoria</th><th>Tipo</th><th>Qtd</th><th>Motivo</th><th>Usuário</th></tr>';
+      if (tbody) tbody.innerHTML = (dados.movimentacoes || []).map(m => `<tr>
+        <td>${new Date(m.data_movimentacao).toLocaleString('pt-BR')}</td>
+        <td><strong>${m.produto_nome}</strong></td>
+        <td>${m.categoria_nome || '-'}</td>
+        <td><span class="badge ${m.tipo === 'entrada' ? 'badge-success' : 'badge-warning'}">${m.tipo === 'entrada' ? 'Entrada' : 'Saída'}</span></td>
+        <td>${m.quantidade}</td>
+        <td>${m.motivo || '-'}</td>
+        <td>${m.usuario_nome || '-'}</td>
+      </tr>`).join('');
     }
-    
-    document.getElementById('resultadoRelatorio').scrollIntoView({ behavior: 'smooth' });
-    
+
+    const resultado = document.getElementById('resultadoRelatorio');
+    if (resultado) resultado.scrollIntoView({ behavior: 'smooth' });
   } catch (e) {
     console.error('Erro ao gerar relatório:', e);
     toast('Erro ao gerar relatório', 'error');
   }
 }
 
-// Atualiza loadPage para incluir relatórios
-const loadPageOriginal = loadPage;
-loadPage = function(page) {
-  if (page === 'relatorios') return;
-  if (loadPageOriginal) loadPageOriginal(page);
-};
+async function loadFaixasVencimento() {
+  try {
+    const prods = await api('/api/produtos');
+    if (!prods) return;
+    const faixas = {
+      maior_120: prods.filter(p => p.data_validade && diasParaVencimento(p.data_validade) > 120),
+      ate_90: prods.filter(p => p.data_validade && diasParaVencimento(p.data_validade) <= 90 && diasParaVencimento(p.data_validade) > 60),
+      ate_60: prods.filter(p => p.data_validade && diasParaVencimento(p.data_validade) <= 60 && diasParaVencimento(p.data_validade) > 30),
+      ate_30: prods.filter(p => p.data_validade && diasParaVencimento(p.data_validade) <= 30 && diasParaVencimento(p.data_validade) >= 0)
+    };
+    const elementos = { 'countMaior120': faixas.maior_120.length, 'countAte90': faixas.ate_90.length, 'countAte60': faixas.ate_60.length, 'countAte30': faixas.ate_30.length };
+    Object.keys(elementos).forEach(id => { const el = document.getElementById(id); if (el) el.textContent = elementos[id]; });
+    window.faixasVencimento = faixas;
+  } catch (e) { console.error('Erro ao carregar faixas:', e); }
+}
 
-// Atualiza loadDashboard para incluir faixas
-const loadDashboardOriginal = loadDashboard;
-loadDashboard = async function() {
-  if (loadDashboardOriginal) await loadDashboardOriginal();
-  await loadFaixasVencimento();
-};
+function verProdutosFaixa(faixa) {
+  const faixas = window.faixasVencimento;
+  if (!faixas) return;
+  const titulos = { 'maior_120': 'Produtos >120 dias (Longo prazo)', 'ate_90': 'Produtos ≤90 dias (Atenção)', 'ate_60': 'Produtos ≤60 dias (Urgente)', 'ate_30': 'Produtos ≤30 dias (Crítico)' };
+  const prods = faixas[faixa] || [];
+  document.getElementById('modalFaixaTitle').textContent = titulos[faixa];
+  const tbody = document.getElementById('tabelaProdutosFaixa');
+  tbody.innerHTML = prods.length ? prods.map(p => `<tr>
+    <td><strong>${p.nome}</strong></td><td>${p.categoria_nome || '-'}</td><td>${p.lote || '-'}</td>
+    <td>${formatDate(p.data_validade)}</td>
+    <td><span class="badge ${diasParaVencimento(p.data_validade) <= 30 ? 'badge-danger' : diasParaVencimento(p.data_validade) <= 60 ? 'badge-warning' : 'badge-success'}">${diasParaVencimento(p.data_validade)} dias</span></td>
+    <td>${p.quantidade} ${p.unidade}</td>
+  </tr>`).join('') : '<tr><td colspan="6" class="text-center" style="padding: 20px;">Nenhum produto</td></tr>';
+  document.getElementById('modalProdutosFaixa').classList.add('active');
+}
 
-// ============ MODO OFFLINE & MENU MOBILE ============
-
-// 1. Menu Mobile
+// ==========================================
+// MODO OFFLINE & MENU MOBILE
+// ==========================================
 const menuToggle = document.getElementById('menuToggle');
 const sidebar = document.querySelector('.sidebar');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -1530,201 +1477,156 @@ if (menuToggle && sidebar) {
   }
   checkScreenSize();
   window.addEventListener('resize', checkScreenSize);
-
-  menuToggle.addEventListener('click', () => {
-    sidebar.classList.toggle('open');
-    sidebarOverlay.classList.toggle('active');
-  });
-
-  sidebarOverlay.addEventListener('click', () => {
-    sidebar.classList.remove('open');
-    sidebarOverlay.classList.remove('active');
-  });
-
+  menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); sidebarOverlay.classList.toggle('active'); });
+  sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('active'); });
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
-      if (window.innerWidth <= 768) {
-        sidebar.classList.remove('open');
-        sidebarOverlay.classList.remove('active');
-      }
+      if (window.innerWidth <= 768) { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('active'); }
     });
   });
 }
 
-// 2. Sistema de Fila Offline
 const OFFLINE_QUEUE_KEY = 'offline_queue_produtos';
-
 async function saveProdutoOffline(data) {
   const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
-  queue.push({
-    ...data,
-    _idTemp: Date.now(),
-    _createdAt: new Date().toISOString()
-  });
+  queue.push({ ...data, _idTemp: Date.now(), _createdAt: new Date().toISOString() });
   localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
   toast('⚠️ Salvo offline! Será enviado quando voltar a internet.', 'warning');
   closeModal('modalProduto');
-  loadProdutos(); // Atualiza a tabela localmente se quiser
+  loadProdutos();
 }
 
 window.sincronizarDadosOffline = async function() {
   const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
   if (queue.length === 0) return;
-
   toast(`🔄 Sincronizando ${queue.length} item(ns)...`, 'info');
   let sucesso = 0;
-
   for (const item of queue) {
     try {
       const { _idTemp, _createdAt, ...dadosReais } = item;
       await api('/api/produtos', { method: 'POST', body: dadosReais });
       sucesso++;
-    } catch (e) {
-      console.error('Erro ao sincronizar item:', e);
-    }
+    } catch (e) { console.error('Erro ao sincronizar item:', e); }
   }
-
   if (sucesso > 0) {
-    // Remove os itens que deram certo da fila
-    const novaFila = queue.filter(item => {
-       // Lógica simples: limpa tudo se a maioria foi, ou refina depois
-       return false; 
-    });
-    // Para simplificar, se sincronizou, limpa a fila toda (pode ser refinado depois)
     localStorage.setItem(OFFLINE_QUEUE_KEY, '[]');
     toast(`✅ ${sucesso} item(ns) sincronizado(s)!`, 'success');
     loadProdutos();
   }
 };
 
-// 3. Sobrescrever saveProduto para checar internet
+// ✅ DEPOIS — Porta 2 alinhada com a Porta 1
 const saveProdutoOriginal = saveProduto;
 saveProduto = async function() {
   if (!navigator.onLine) {
     const categoriaId = document.getElementById('prodCategoria')?.value;
     const getVal = (id) => document.getElementById(id)?.value || null;
-    
+    const unidadeMedida = getVal('prodUnidade') || 'UN';
     const data = {
       nome: getVal('prodNome'),
       categoria_id: categoriaId,
-      unidade: getVal('prodUnidade') || 'UN',
+      unidade: unidadeMedida,
       quantidade: parseInt(getVal('prodQtd')) || 0,
       quantidade_minima: parseInt(getVal('prodQtdMin')) || 0,
       localizacao: getVal('prodLocal'),
-      data_validade: getVal('prodValidade'),
+      data_validade: dataBRparaISO(getVal('prodValidade')),          // ✅ converte DD/MM/AAAA
       lote: getVal('prodLote'),
       marca: getVal('prodMarca'),
       modelo: getVal('prodModelo'),
-      patrimonio: getVal('prodPatrimonio')
+      patrimonio: getVal('prodPatrimonio'),
+      descricao: getVal('prodDescricao') || null,                    // ✅ descrição entra
+      unidades_por_caixa: (unidadeMedida.startsWith('CX') || unidadeMedida === 'FD')
+        ? (parseInt(getVal('prodUnidadesPorCaixa')) || null)         // ✅ caixa/fardo entra
+        : null
     };
-
-    if (!data.nome || !data.categoria_id) {
-      toast('Preencha nome e categoria', 'error');
-      return;
-    }
+    if (!data.nome || !data.categoria_id) { toast('Preencha nome e categoria', 'error'); return; }
     await saveProdutoOffline(data);
     return;
   }
-  // Se estiver online, usa a função original
   await saveProdutoOriginal();
 };
 
-// Tenta sincronizar ao carregar a página
 if (navigator.onLine) {
-  setTimeout(() => {
-    if(window.sincronizarDadosOffline) window.sincronizarDadosOffline();
-  }, 2000);
+  setTimeout(() => { if(window.sincronizarDadosOffline) window.sincronizarDadosOffline(); }, 2000);
 }
 
-// ============ TOGGLE SENHA NO LOGIN (Versão Simplificada) ============
+// ==========================================
+// TOGGLE SENHA NO LOGIN
+// ==========================================
 (function() {
   const toggleBtn = document.getElementById('togglePassword');
   const passwordInput = document.getElementById('loginPass');
   const eyeIcon = document.getElementById('eyeIcon');
+  if (!toggleBtn || !passwordInput || !eyeIcon) return;
   
-  if (!toggleBtn || !passwordInput || !eyeIcon) {
-    console.log('⚠️ Elementos do toggle não encontrados');
-    return;
-  }
-  
-  // SVG do olho aberto
   const eyeOpenSVG = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
-  
-  // SVG do olho fechado
   const eyeClosedSVG = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
-  
   let isPasswordVisible = false;
   
   function togglePassword() {
     isPasswordVisible = !isPasswordVisible;
-    
-    // Alterna tipo do input
     passwordInput.type = isPasswordVisible ? 'text' : 'password';
-    
-    // Alterna ícone
     eyeIcon.innerHTML = isPasswordVisible ? eyeClosedSVG : eyeOpenSVG;
-    
-    console.log('Senha:', isPasswordVisible ? 'visível' : 'oculta');
   }
-  
-  // Eventos
-  toggleBtn.addEventListener('click', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    togglePassword();
-  });
-  
-  toggleBtn.addEventListener('touchend', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    togglePassword();
-  });
-  
-  toggleBtn.addEventListener('mousedown', function(e) {
-    e.preventDefault();
-  });
-  
-  console.log('✅ Toggle de senha inicializado');
+  toggleBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); togglePassword(); });
+  toggleBtn.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); togglePassword(); });
+  toggleBtn.addEventListener('mousedown', (e) => { e.preventDefault(); });
 })();
 
-// ============ ATUALIZAR CAMPOS POR CATEGORIA ============
-function atualizarCamposPorCategoria() {
-  const categoriaId = document.getElementById('prodCategoria')?.value;
-  const categoria = categorias.find(c => c.id == categoriaId);
+// ==========================================
+// INICIALIZAÇÃO DO SISTEMA
+// ==========================================
+document.addEventListener('DOMContentLoaded', function() {
+  initTheme();
+  initDatePicker('prodValidade');
+  const themeToggle = document.getElementById('themeToggle');
+  if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
   
-  if (!categoria) return;
-  
-  // IDs dos campos
-  const camposConsumo = ['prodValidade', 'prodLote', 'prodLocal'];
-  const camposPermanente = ['prodMarca', 'prodModelo', 'prodPatrimonio'];
-  
-  if (categoria.tipo === 'permanente') {
-    // Material Permanente: mostra marca, modelo, patrimônio
-    camposPermanente.forEach(id => {
-      const el = document.getElementById(id);
-      if (el && el.closest('.form-group')) {
-        el.closest('.form-group').style.display = 'block';
-      }
-    });
-    camposConsumo.forEach(id => {
-      const el = document.getElementById(id);
-      if (el && el.closest('.form-group')) {
-        el.closest('.form-group').style.display = 'none';
-      }
-    });
-  } else {
-    // Material de Consumo: mostra validade, lote, localização
-    camposConsumo.forEach(id => {
-      const el = document.getElementById(id);
-      if (el && el.closest('.form-group')) {
-        el.closest('.form-group').style.display = 'block';
-      }
-    });
-    camposPermanente.forEach(id => {
-      const el = document.getElementById(id);
-      if (el && el.closest('.form-group')) {
-        el.closest('.form-group').style.display = 'none';
-      }
-    });
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) loginForm.addEventListener('submit', fazerLogin);
+
+  const prodCategoria = document.getElementById('prodCategoria');
+  if (prodCategoria) prodCategoria.addEventListener('change', toggleCamposCategoria);
+
+  if (token && currentUser) {
+    showApp();
+    loadPage('dashboard');
   }
+});
+
+function atualizarMenuPorPerfil() {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const perfil = user.perfil; 
+  document.querySelectorAll('.admin-only, .admin-coord-only').forEach(item => { item.style.display = 'none'; });
+  if (perfil === 'admin') {
+    document.querySelectorAll('.admin-only, .admin-coord-only').forEach(item => { item.style.display = 'flex'; });
+  } else if (perfil === 'coordenador') {
+    document.querySelectorAll('.admin-coord-only').forEach(item => { item.style.display = 'flex'; });
+  }
+  const userNameEl = document.getElementById('userName');
+  const userPerfilEl = document.getElementById('userPerfil');
+  if (userNameEl) userNameEl.textContent = user.nome || 'Usuário';
+  if (userPerfilEl) userPerfilEl.textContent = user.perfil || 'Perfil';
 }
+
+// Verifica backup automático a cada 30 segundos
+setInterval(async () => {
+  try {
+    const r = await fetch('/refresh.txt?t=' + Date.now(), { cache: 'no-store' });
+    if (r.ok) {
+      const novoSinal = await r.text();
+      const sinalAntigo = localStorage.getItem('lastRefreshSignal');
+      if (novoSinal && novoSinal !== sinalAntigo) {
+        localStorage.setItem('lastRefreshSignal', novoSinal);
+        setTimeout(() => location.reload(), 3000);
+      }
+    }
+  } catch(e) {}
+}, 30000);
+
+// Atualiza loadDashboard para incluir faixas
+const loadDashboardOriginal = loadDashboard;
+loadDashboard = async function() {
+  if (loadDashboardOriginal) await loadDashboardOriginal();
+  await loadFaixasVencimento();
+};

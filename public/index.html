@@ -5,25 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema de Estoque</title>
   <link rel="stylesheet" href="/css/styles.css">
-  <!-- FAVICON -->
   <link rel="icon" href="/assets/logo.ico" type="image/x-icon">
   <link rel="shortcut icon" href="/assets/logo.ico" type="image/x-icon">
   <link rel="apple-touch-icon" href="/assets/logo.ico">
+  
   <!-- PWA -->
   <meta name="theme-color" content="#4f46e5">
-  
   <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/assets/logo.ico">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Banner Offline -->
+
+  <!-- Banner Offline -->
   <div id="offlineBanner" style="display: none; position: fixed; top: 0; left: 0; right: 0; background: #ef4444; color: white; text-align: center; padding: 10px; z-index: 9999; font-weight: bold; font-size: 14px;">
     ⚠️ Você está OFFLINE. Os dados serão salvos e sincronizados automaticamente.
   </div>
+
   <!-- LOGIN -->
   <div id="loginScreen" class="login-container">
     <div class="login-box">
@@ -57,7 +57,7 @@
     <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <h2> Estoque</h2>
+        <h2>📦 Estoque</h2>
       </div>
       <div class="user-info">
         <strong id="userName">-</strong>
@@ -69,7 +69,8 @@
         <li class="nav-item" data-page="movimentacoes">🔄 Movimentações</li>
         <li class="nav-item" data-page="relatorios">📑 Relatórios</li>
         <li class="nav-item" data-page="vencimentos">⏰ Vencimentos</li>
-        <li class="nav-item admin-only" data-page="usuarios">👥 Usuários</li>
+        <li class="nav-item admin-only" data-page="unidades">🏥 Unidades</li>
+        <li class="nav-item admin-coord-only" data-page="usuarios">👥 Usuários</li>
         <li class="nav-item admin-only" data-page="backup">💾 Backup</li>
         <li class="nav-item" id="logoutBtn" style="color: var(--danger); margin-top: 20px;">🚪 Sair</li>
       </ul>
@@ -77,74 +78,61 @@
 
     <!-- MAIN CONTENT -->
     <main class="main-content">
-      <!-- Botão Menu Mobile -->
       <button class="menu-toggle" id="menuToggle" style="display: none;">☰</button>
       <div class="sidebar-overlay" id="sidebarOverlay"></div>
-      <!-- HEADER -->
-<div style="display: flex; justify-content: flex-end; margin-bottom: 20px; gap: 12px; align-items: center;">
-  <!-- Botão de Tema -->
-  <button class="theme-toggle-btn" id="themeToggle" title="Alternar tema">
-    <span id="themeIcon">🌙</span>
-  </button>
-  
-  <!-- Botão de Notificações -->
-  <div class="notification-bell" id="notifBell">
-    🔔 <span class="notification-count hidden" id="notifCount">0</span>
-    <div class="notification-panel" id="notifPanel">
-      <div class="notification-panel-header">
-        <span>Notificações</span>
-        <button class="btn-mark-read" id="markAllReadBtn">Marcar todas como lidas</button>
+      
+      <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; gap: 12px; align-items: center;">
+        <button class="theme-toggle-btn" id="themeToggle" title="Alternar tema">
+          <span id="themeIcon">🌙</span>
+        </button>
+        <div class="notification-bell" id="notifBell">
+          🔔 <span class="notification-count hidden" id="notifCount">0</span>
+          <div class="notification-panel" id="notifPanel">
+            <div class="notification-panel-header">
+              <span>Notificações</span>
+              <button class="btn-mark-read" id="markAllReadBtn">Marcar todas como lidas</button>
+            </div>
+            <div id="notifList"></div>
+          </div>
+        </div>
       </div>
-      <div id="notifList"></div>
-    </div>
-  </div>
-</div>
 
       <!-- DASHBOARD -->
       <div id="page-dashboard" class="page">
         <div class="page-header"><h1>Dashboard</h1></div>
         <div class="stats-grid" id="statsGrid"></div>
-        <!-- FAIXAS DE VENCIMENTO -->
-<div class="card">
-  <h3> Produtos por Faixa de Vencimento</h3>
-  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 20px;">
-    <div class="faixa-card maior-120" onclick="verProdutosFaixa('maior_120')">
-      <div class="label">🟢 >120 dias</div>
-      <div class="count" id="countMaior120">0</div>
-      <div style="font-size: 11px; color: var(--text-light);">Longo prazo</div>
-    </div>
-    <div class="faixa-card ate-90" onclick="verProdutosFaixa('ate_90')">
-      <div class="label">🔵 ≤90 dias</div>
-      <div class="count" id="countAte90">0</div>
-      <div style="font-size: 11px; color: var(--text-light);">Atenção</div>
-    </div>
-    <div class="faixa-card ate-60" onclick="verProdutosFaixa('ate_60')">
-      <div class="label">🟠 ≤60 dias</div>
-      <div class="count" id="countAte60">0</div>
-      <div style="font-size: 11px; color: var(--text-light);">Urgente</div>
-    </div>
-    <div class="faixa-card ate-30" onclick="verProdutosFaixa('ate_30')">
-      <div class="label">🔴 ≤30 dias</div>
-      <div class="count" id="countAte30">0</div>
-      <div style="font-size: 11px; color: var(--text-light);">Crítico</div>
-    </div>
-  </div>
-</div>
+        <div class="card">
+          <h3>📅 Produtos por Faixa de Vencimento</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 20px;">
+            <div class="faixa-card maior-120" onclick="verProdutosFaixa('maior_120')">
+              <div class="label">🟢 >120 dias</div>
+              <div class="count" id="countMaior120">0</div>
+            </div>
+            <div class="faixa-card ate-90" onclick="verProdutosFaixa('ate_90')">
+              <div class="label">🔵 ≤90 dias</div>
+              <div class="count" id="countAte90">0</div>
+            </div>
+            <div class="faixa-card ate-60" onclick="verProdutosFaixa('ate_60')">
+              <div class="label">🟠 ≤60 dias</div>
+              <div class="count" id="countAte60">0</div>
+            </div>
+            <div class="faixa-card ate-30" onclick="verProdutosFaixa('ate_30')">
+              <div class="label">🔴 ≤30 dias</div>
+              <div class="count" id="countAte30">0</div>
+            </div>
+          </div>
+        </div>
         <div class="card" id="dashPrioridade" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <h3>🎯 Prioridade de Uso (FEFO)</h3>
-            <span style="font-size: 12px; color: var(--text-light);">Ordenado por vencimento</span>
           </div>
           <div style="overflow-x: auto;">
             <table>
-              <thead>
-                <tr><th>Prioridade</th><th>Produto</th><th>Lote</th><th>Validade</th><th>Dias</th><th>Qtd</th><th>Ações</th></tr>
-              </thead>
+              <thead><tr><th>Prioridade</th><th>Produto</th><th>Lote</th><th>Validade</th><th>Dias</th><th>Qtd</th></tr></thead>
               <tbody id="prioridadeTable"></tbody>
             </table>
           </div>
         </div>
-        
         <div id="dashDetails"></div>
       </div>
 
@@ -163,9 +151,7 @@
           </div>
           <div style="overflow-x: auto;">
             <table>
-              <thead>
-                <tr><th>Nome</th><th>Categoria</th><th>Qtd</th><th>Mín</th><th>Validade</th><th>Lote</th><th>Ações</th></tr>
-              </thead>
+              <thead><tr><th>Nome</th><th>Categoria</th><th>Qtd</th><th>Mín</th><th>Validade</th><th>Lote</th><th>Ações</th></tr></thead>
               <tbody id="produtosTable"></tbody>
             </table>
           </div>
@@ -184,9 +170,7 @@
         <div class="table-container">
           <div style="overflow-x: auto;">
             <table>
-              <thead>
-                <tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Qtd</th><th>Motivo</th><th>Usuário</th></tr>
-              </thead>
+              <thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Qtd</th><th>Motivo</th><th>Usuário</th></tr></thead>
               <tbody id="movTable"></tbody>
             </table>
           </div>
@@ -216,6 +200,24 @@
         </div>
       </div>
 
+      <!-- UNIDADES (Apenas Admin) -->
+      <div id="page-unidades" class="page hidden">
+        <div class="page-header">
+          <h2>🏥 Gestão de Unidades</h2>
+          <button class="btn btn-primary" onclick="openUnidadeModal()">+ Nova Unidade</button>
+        </div>
+        <div class="card">
+          <div class="table-container">
+            <table class="table">
+              <thead>
+                <tr><th>ID</th><th>Nome da Unidade</th><th>Endereço</th><th>Responsável</th><th>Status</th><th>Ações</th></tr>
+              </thead>
+              <tbody id="tabelaUnidades"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- USUÁRIOS -->
       <div id="page-usuarios" class="page hidden">
         <div class="page-header">
@@ -225,9 +227,7 @@
         <div class="table-container">
           <div style="overflow-x: auto;">
             <table>
-              <thead>
-                <tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Status</th><th>Ações</th></tr>
-              </thead>
+              <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Unidade</th><th>Status</th><th>Ações</th></tr></thead>
               <tbody id="usersTable"></tbody>
             </table>
           </div>
@@ -235,267 +235,156 @@
       </div>
 
       <!-- BACKUP -->
-<div id="page-backup" class="page hidden">
-  <div class="page-header">
-    <h1>Backup e Restauração</h1>
-    <div style="display: flex; gap: 12px;">
-      <button class="btn btn-success" onclick="criarBackup()">💾 Backup Manual</button>
-      <button class="btn btn-warning" onclick="forcarBackup()">⚡ Forçar Backup</button>
-    </div>
-  </div>
-  
-  <!-- Configuração de Backup Automático -->
-  <div class="card">
-    <h3>⚙️ Configuração de Backup Automático</h3>
-    <div style="margin-top: 16px;">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-        <div class="form-group">
-          <label>
-            <input type="checkbox" id="backupAutomatico" style="margin-right: 8px;">
-            Ativar backup automático
-          </label>
+      <div id="page-backup" class="page hidden">
+        <div class="page-header">
+          <h1>💾 Backup e Restauração</h1>
+          <div style="display: flex; gap: 12px;">
+            <button class="btn btn-success" onclick="criarBackup()">Backup Manual Agora</button>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Frequência</label>
-          <select id="backupFrequencia" class="form-control">
-            <option value="diario">Diário</option>
-            <option value="semanal">Semanal</option>
-            <option value="mensal">Mensal</option>
-          </select>
+        
+        <!-- Configuração de Backup Automático Inteligente -->
+        <div class="card">
+          <h3>⚙️ Configuração de Backup Automático Inteligente</h3>
+          <div style="margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="backupAutomatico" style="width: 18px; height: 18px;">
+                Ativar Backup Automático
+              </label>
+            </div>
+            <div class="form-group">
+              <label>Frequência</label>
+              <select id="backupFrequencia" class="form-control">
+                <option value="hora">A cada Hora</option>
+                <option value="dia" selected>Diariamente</option>
+                <option value="semana">Semanalmente</option>
+                <option value="mes">Mensalmente</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Horário de Execução</label>
+              <input type="time" id="backupHorario" class="form-control" value="02:00">
+            </div>
+            <div class="form-group">
+              <label>Manter últimos (quantidade)</label>
+              <input type="number" id="backupReter" class="form-control" value="10" min="1" max="50">
+            </div>
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="backupInteligente" style="width: 18px; height: 18px;">
+                Modo Inteligente (só se houver alterações)
+              </label>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="margin-top: 16px;" onclick="salvarConfigBackup()">💾 Salvar Configuração de Backup</button>
         </div>
-        <div class="form-group">
-          <label>Horário</label>
-          <input type="time" id="backupHorario" class="form-control" value="02:00">
+        
+        <!-- Estatísticas -->
+        <div class="stats-grid" id="backupStats" style="margin-top: 24px;"></div>
+        
+        <!-- Lista de Backups -->
+        <div class="card" style="margin-top: 24px;">
+          <h3>📂 Backups Disponíveis</h3>
+          <div style="overflow-x: auto;" class="mt-2">
+            <table>
+              <thead>
+                <tr><th>Arquivo</th><th>Tipo</th><th>Tamanho</th><th>Data</th><th>Ações</th></tr>
+              </thead>
+              <tbody id="backupsTable"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Manter últimos (backups)</label>
-          <input type="number" id="backupReter" class="form-control" value="10" min="1" max="50">
+      </div>
+
+      <!-- ==================== RELATÓRIOS ==================== -->
+      <div id="page-relatorios" class="page hidden">
+        <div class="page-header">
+          <h1>📑 Relatórios</h1>
         </div>
-        <div class="form-group">
-          <label>
-            <input type="checkbox" id="backupInteligente" style="margin-right: 8px;">
-            Modo inteligente (só se houver alterações)
-          </label>
+
+        <!-- Seleção de tipo -->
+        <div class="card">
+          <h3>Tipo de Relatório</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+            <div class="relatorio-card" id="cardRelProdutos" onclick="selecionarRelatorio('produtos')">
+              <div style="font-size: 32px; margin-bottom: 8px;">📦</div>
+              <h4>Relatório de Produtos</h4>
+              <p style="font-size: 13px; color: var(--text-light); margin-top: 8px;">Estoque atual, validade, lote e status</p>
+            </div>
+            <div class="relatorio-card" id="cardRelMovimentacoes" onclick="selecionarRelatorio('movimentacoes')">
+              <div style="font-size: 32px; margin-bottom: 8px;">🔄</div>
+              <h4>Relatório de Movimentações</h4>
+              <p style="font-size: 13px; color: var(--text-light); margin-top: 8px;">Entradas e saídas por período</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="card" id="filtrosRelatorio" style="display: none;">
+          <h3>Filtros</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px;">
+            <div class="form-group">
+              <label>Categoria</label>
+              <select id="relCategoria" class="form-control">
+                <option value="todos">Todas as categorias</option>
+              </select>
+            </div>
+            <div class="form-group" id="filtroDataInicio" style="display: none;">
+              <label>Data Início</label>
+              <input type="date" id="relDataInicio" class="form-control">
+            </div>
+            <div class="form-group" id="filtroDataFim" style="display: none;">
+              <label>Data Fim</label>
+              <input type="date" id="relDataFim" class="form-control">
+            </div>
+            <div class="form-group" id="filtroTipo" style="display: none;">
+              <label>Tipo de Movimentação</label>
+              <select id="relTipo" class="form-control">
+                <option value="todos">Todos</option>
+                <option value="entrada">Entradas</option>
+                <option value="saida">Saídas</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: flex; gap: 12px; margin-top: 20px;">
+            <button class="btn btn-primary" onclick="gerarRelatorio()">📊 Gerar Relatório</button>
+            <button class="btn btn-secondary" onclick="limparFiltros()">🔄 Limpar Filtros</button>
+          </div>
+        </div>
+
+        <!-- Resultado -->
+        <div id="resultadoRelatorio" style="display: none;">
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h2 id="tituloRelatorio">Relatório</h2>
+                <p style="color: var(--text-light); margin-top: 4px;" id="subtituloRelatorio"></p>
+              </div>
+              <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
+            </div>
+          </div>
+          <div class="stats-grid" id="statsRelatorio"></div>
+          <div class="card">
+            <div style="overflow-x: auto;">
+              <table>
+                <thead id="theadRelatorio"></thead>
+                <tbody id="tbodyRelatorio"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card" style="text-align: center; color: var(--text-light); font-size: 12px;">
+            Gerado em <span id="dataGeracao"></span> · Sistema de Estoque
+          </div>
         </div>
       </div>
-      <button class="btn btn-primary mt-2" onclick="salvarConfigBackup()">💾 Salvar Configuração</button>
-    </div>
-  </div>
-  
-  <!-- Estatísticas -->
-  <div class="stats-grid" id="backupStats"></div>
-  
-  <!-- Lista de Backups -->
-  <div class="card">
-    <h3> Backups Disponíveis</h3>
-    <div style="overflow-x: auto;" class="mt-2">
-      <table>
-        <thead>
-          <tr><th>Arquivo</th><th>Tipo</th><th>Tamanho</th><th>Data</th><th>Ações</th></tr>
-        </thead>
-        <tbody id="backupsTable"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-<!-- RELATÓRIOS -->
-<div id="page-relatorios" class="page hidden">
-  <div class="page-header">
-    <h1>📑 Relatórios</h1>
-  </div>
-  
-  <!-- Seleção de Tipo -->
-  <div class="card">
-    <h3>Tipo de Relatório</h3>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
-      <div class="relatorio-card" onclick="selecionarRelatorio('produtos')" id="cardRelProdutos">
-        <div style="font-size: 32px; margin-bottom: 8px;">📦</div>
-        <h4>Relatório de Produtos</h4>
-        <p style="font-size: 13px; color: var(--text-light); margin-top: 8px;">
-          Estoque atual, validade, lote e status
-        </p>
-      </div>
-      
-      <div class="relatorio-card" onclick="selecionarRelatorio('movimentacoes')" id="cardRelMovimentacoes">
-        <div style="font-size: 32px; margin-bottom: 8px;">🔄</div>
-        <h4>Relatório de Movimentações</h4>
-        <p style="font-size: 13px; color: var(--text-light); margin-top: 8px;">
-          Entradas e saídas por período
-        </p>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Filtros -->
-  <div class="card" id="filtrosRelatorio" style="display: none;">
-    <h3>Filtros</h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px;">
-      <div class="form-group">
-        <label>Categoria</label>
-        <select id="relCategoria" class="form-control">
-          <option value="todos">Todas as categorias</option>
-        </select>
-      </div>
-      
-      <div class="form-group" id="filtroDataInicio" style="display: none;">
-        <label>Data Início</label>
-        <input type="date" id="relDataInicio" class="form-control">
-      </div>
-      
-      <div class="form-group" id="filtroDataFim" style="display: none;">
-        <label>Data Fim</label>
-        <input type="date" id="relDataFim" class="form-control">
-      </div>
-      
-      <div class="form-group" id="filtroTipo" style="display: none;">
-        <label>Tipo</label>
-        <select id="relTipo" class="form-control">
-          <option value="todos">Todos</option>
-          <option value="entrada">Entradas</option>
-          <option value="saida">Saídas</option>
-        </select>
-      </div>
-    </div>
-    
-    <div style="display: flex; gap: 12px; margin-top: 20px;">
-      <button class="btn btn-primary" onclick="gerarRelatorio()">📊 Gerar Relatório</button>
-      <button class="btn btn-secondary" onclick="limparFiltros()">🔄 Limpar</button>
-    </div>
-  </div>
-  
-  <!-- Resultado -->
-  <div id="resultadoRelatorio" style="display: none;">
-    <div class="card" id="cabecalhoRelatorio">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div>
-          <h2 id="tituloRelatorio">Relatório</h2>
-          <p style="color: var(--text-light); margin-top: 4px;" id="subtituloRelatorio"></p>
-        </div>
-        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
-      </div>
-    </div>
-    
-    <div class="stats-grid" id="statsRelatorio"></div>
-    
-    <div class="card">
-      <div style="overflow-x: auto;">
-        <table id="tabelaRelatorio">
-          <thead id="theadRelatorio"></thead>
-          <tbody id="tbodyRelatorio"></tbody>
-        </table>
-      </div>
-    </div>
-    
-    <div class="card" style="text-align: center; color: var(--text-light); font-size: 12px;">
-      <p>Gerado em <span id="dataGeracao"></span> | Sistema de Estoque</p>
-    </div>
-  </div>
-</div>
+
     </main>
   </div>
 
-  <!-- RELATÓRIOS -->
-<div id="page-relatorios" class="page hidden">
-  <div class="page-header">
-    <h1>📑 Relatórios</h1>
-  </div>
-  
-  <!-- Seleção de Tipo de Relatório -->
-  <div class="card">
-    <h3>Tipo de Relatório</h3>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
-      <div class="relatorio-card" onclick="selecionarRelatorio('produtos')" id="cardRelProdutos">
-        <div style="font-size: 32px; margin-bottom: 8px;">📦</div>
-        <h4>Relatório de Produtos</h4>
-        <p style="font-size: 13px; color: var(--text-light); margin-top: 8px;">
-          Estoque atual, validade, lote, categoria e status
-        </p>
-      </div>
-      
-      <div class="relatorio-card" onclick="selecionarRelatorio('movimentacoes')" id="cardRelMovimentacoes">
-        <div style="font-size: 32px; margin-bottom: 8px;">🔄</div>
-        <h4>Relatório de Movimentações</h4>
-        <p style="font-size: 13px; color: var(--text-light); margin-top: 8px;">
-          Entradas e saídas filtradas por período
-        </p>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Filtros -->
-  <div class="card" id="filtrosRelatorio" style="display: none;">
-    <h3>Filtros</h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px;">
-      <div class="form-group">
-        <label>Categoria</label>
-        <select id="relCategoria" class="form-control">
-          <option value="todos">Todas as categorias</option>
-        </select>
-      </div>
-      
-      <div class="form-group" id="filtroDataInicio">
-        <label>Data Início</label>
-        <input type="date" id="relDataInicio" class="form-control">
-      </div>
-      
-      <div class="form-group" id="filtroDataFim">
-        <label>Data Fim</label>
-        <input type="date" id="relDataFim" class="form-control">
-      </div>
-      
-      <div class="form-group" id="filtroTipo" style="display: none;">
-        <label>Tipo de Movimentação</label>
-        <select id="relTipo" class="form-control">
-          <option value="todos">Todos</option>
-          <option value="entrada">Entradas</option>
-          <option value="saida">Saídas</option>
-        </select>
-      </div>
-    </div>
-    
-    <div style="display: flex; gap: 12px; margin-top: 20px;">
-      <button class="btn btn-primary" onclick="gerarRelatorio()"> Gerar Relatório</button>
-      <button class="btn btn-secondary" onclick="limparFiltros()">🔄 Limpar Filtros</button>
-    </div>
-  </div>
-  
-  <!-- Resultado do Relatório -->
-  <div id="resultadoRelatorio" style="display: none;">
-    <!-- Cabeçalho do Relatório -->
-    <div class="card" id="cabecalhoRelatorio">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div>
-          <h2 id="tituloRelatorio">Relatório</h2>
-          <p style="color: var(--text-light); margin-top: 4px;" id="subtituloRelatorio"></p>
-        </div>
-        <button class="btn btn-primary" onclick="window.print()">️ Imprimir</button>
-      </div>
-    </div>
-    
-    <!-- Estatísticas -->
-    <div class="stats-grid" id="statsRelatorio"></div>
-    
-    <!-- Tabela -->
-    <div class="card">
-      <div style="overflow-x: auto;">
-        <table id="tabelaRelatorio">
-          <thead id="theadRelatorio"></thead>
-          <tbody id="tbodyRelatorio"></tbody>
-        </table>
-      </div>
-    </div>
-    
-    <!-- Rodapé -->
-    <div class="card" style="text-align: center; color: var(--text-light); font-size: 12px;">
-      <p>Relatório gerado em <span id="dataGeracao"></span></p>
-      <p>Sistema de Gerenciamento de Estoque</p>
-    </div>
-  </div>
-</div>
-
   <!-- MODAIS -->
-<div class="modal-overlay" id="modalProduto">
-  <div class="modal" style="max-width: 700px;">
+  <div class="modal-overlay" id="modalProduto">
+  <div class="modal" style="max-width: 720px;">
     <div class="modal-header">
       <h3 id="modalProdutoTitle">Novo Produto</h3>
       <button class="modal-close" onclick="closeModal('modalProduto')">×</button>
@@ -503,8 +392,8 @@
     <div class="modal-body">
       <form id="formProduto">
         <input type="hidden" id="prodId">
-        
-        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+
+        <div class="form-grid form-grid-2">
           <div class="form-group">
             <label>Nome *</label>
             <input type="text" id="prodNome" class="form-control" required>
@@ -517,12 +406,24 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+        <div class="form-group">
+          <label>Descrição do Produto</label>
+          <textarea id="prodDescricao" class="form-control" rows="2" placeholder="Detalhes adicionais, especificações, finalidade..."></textarea>
+        </div>
+
+        <!-- Unidade de Saúde (só Admin) -->
+        <div class="form-group" id="grupoUnidadeSaude" style="display: none;">
+          <label>🏥 Unidade de Saúde do Produto *</label>
+          <select id="prodUnidadeSaude" class="form-control"><option value="">Selecione a unidade...</option></select>
+        </div>
+
+        <div class="form-grid form-grid-3">
           <div class="form-group">
-            <label>Unidade *</label>
-            <select id="prodUnidade" class="form-control" required>
+            <label>Unidade de Medida *</label>
+            <select id="prodUnidade" class="form-control" required onchange="toggleUnidadesPorCaixa()">
               <option value="UN">UN - Unidade</option>
               <option value="CX">CX - Caixa</option>
+              <option value="FD">FD - Fardo</option>
               <option value="GL">GL - Galão</option>
               <option value="LT">LT - Litro</option>
               <option value="KG">KG - Quilograma</option>
@@ -530,61 +431,56 @@
               <option value="MT">MT - Metro</option>
               <option value="RL">RL - Rolo</option>
               <option value="PC">PC - Peça</option>
-              <option value="JT">JT - Jogo</option>
-              <option value="KD">KD - Kit</option>
               <option value="FR">FR - Frasco</option>
               <option value="AMP">AMP - Ampola</option>
-              <option value="CX100">CX100 - Caixa c/ 100</option>
-              <option value="CX50">CX50 - Caixa c/ 50</option>
-              <option value="CX20">CX20 - Caixa c/ 20</option>
-              <option value="CX10">CX10 - Caixa c/ 10</option>
             </select>
           </div>
           <div class="form-group">
             <label>Qtd Atual</label>
-            <input type="number" id="prodQtd" class="form-control" value="0" min="0">
+            <input type="number" id="prodQtd" class="form-control" value="0" min="0" inputmode="numeric">
           </div>
           <div class="form-group">
             <label>Qtd Mínima</label>
-            <input type="number" id="prodQtdMin" class="form-control" value="0" min="0">
+            <input type="number" id="prodQtdMin" class="form-control" value="0" min="0" inputmode="numeric">
           </div>
         </div>
 
-        <!-- CAMPOS PARA MATERIAL PERMANENTE (Marca, Modelo, Patrimônio) -->
+        <!-- Unidades por Caixa/Fardo (aparece para CX* ou FD) -->
+        <div class="form-group" id="grupoUnidadesPorCaixa" style="display: none; background: rgba(79,70,229,.08); padding: 12px; border-radius: 8px; border-left: 3px solid var(--primary);">
+          <label>📦 Unidades por Caixa/Fardo *</label>
+          <input type="number" id="prodUnidadesPorCaixa" class="form-control" min="1" inputmode="numeric" placeholder="Ex: 12">
+          <small style="color: var(--text-light);">Quantas unidades avulsas há em 1 caixa/fardo.</small>
+        </div>
+
+        <!-- Material Permanente -->
         <div id="camposPermanente" style="display: none; border-top: 2px solid var(--border); padding-top: 16px; margin-top: 16px;">
           <h4 style="margin-bottom: 12px; color: var(--primary);">📋 Dados do Material Permanente</h4>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-            <div class="form-group">
-              <label>Marca</label>
-              <input type="text" id="prodMarca" class="form-control" placeholder="Ex: Dell, HP">
-            </div>
-            <div class="form-group">
-              <label>Modelo</label>
-              <input type="text" id="prodModelo" class="form-control" placeholder="Ex: Inspiron 15">
-            </div>
-            <div class="form-group">
-              <label>Nº Patrimônio</label>
-              <input type="text" id="prodPatrimonio" class="form-control" placeholder="Ex: 2024001234">
-            </div>
+          <div class="form-grid form-grid-3">
+            <div class="form-group"><label>Marca</label><input type="text" id="prodMarca" class="form-control"></div>
+            <div class="form-group"><label>Modelo</label><input type="text" id="prodModelo" class="form-control"></div>
+            <div class="form-group"><label>Nº Patrimônio</label><input type="text" id="prodPatrimonio" class="form-control"></div>
           </div>
         </div>
 
-        <!-- CAMPOS PARA OUTROS MATERIAIS (Validade, Lote, Localização) -->
+        <!-- Consumo / Validade -->
         <div id="camposValidadeLote" style="border-top: 2px solid var(--border); padding-top: 16px; margin-top: 16px;">
           <h4 style="margin-bottom: 12px; color: var(--primary);">📦 Controle de Validade</h4>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+          <div class="form-grid form-grid-3">
             <div class="form-group">
               <label>Data de Validade</label>
-              <input type="date" id="prodValidade" class="form-control">
+              <div class="date-input-wrap">
+                <input type="text" id="prodValidade" class="form-control" inputmode="numeric" maxlength="10"
+                      placeholder="DD/MM/AAAA" oninput="mascaraDataBR(this)" autocomplete="off">
+                <button type="button" class="date-picker-btn" id="prodValidadeBtn" aria-label="Abrir calendário" tabindex="-1">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Lote</label>
-              <input type="text" id="prodLote" class="form-control">
-            </div>
-            <div class="form-group">
-              <label>Localização</label>
-              <input type="text" id="prodLocal" class="form-control">
-            </div>
+            <div class="form-group"><label>Lote</label><input type="text" id="prodLote" class="form-control"></div>
+            <div class="form-group"><label>Localização</label><input type="text" id="prodLocal" class="form-control"></div>
           </div>
         </div>
       </form>
@@ -605,18 +501,9 @@
       <div class="modal-body">
         <form id="formMov">
           <input type="hidden" id="movTipo">
-          <div class="form-group">
-            <label>Produto *</label>
-            <select id="movProduto" class="form-control" required></select>
-          </div>
-          <div class="form-group">
-            <label>Quantidade *</label>
-            <input type="number" id="movQtd" class="form-control" required min="1">
-          </div>
-          <div class="form-group">
-            <label>Motivo</label>
-            <textarea id="movMotivo" class="form-control"></textarea>
-          </div>
+          <div class="form-group"><label>Produto *</label><select id="movProduto" class="form-control" required></select></div>
+          <div class="form-group"><label>Quantidade *</label><input type="number" id="movQtd" class="form-control" required min="1"></div>
+          <div class="form-group"><label>Motivo</label><textarea id="movMotivo" class="form-control"></textarea></div>
         </form>
       </div>
       <div class="modal-footer">
@@ -635,24 +522,21 @@
       <div class="modal-body">
         <form id="formUser">
           <input type="hidden" id="userId">
-          <div class="form-group">
-            <label>Nome *</label>
-            <input type="text" id="userNome" class="form-control" required>
-          </div>
-          <div class="form-group">
-            <label>Usuário *</label>
-            <input type="text" id="userUsername" class="form-control" required>
-          </div>
-          <div class="form-group">
-            <label>Senha <span id="passHint">*</span></label>
-            <input type="password" id="userPassword" class="form-control">
-          </div>
+          <div class="form-group"><label>Nome *</label><input type="text" id="userNome" class="form-control" required></div>
+          <div class="form-group"><label>Usuário (Login) *</label><input type="text" id="userUsername" class="form-control" required></div>
+          <div class="form-group"><label>Senha <span id="passHint">*</span></label><input type="password" id="userPassword" class="form-control"></div>
           <div class="form-group">
             <label>Perfil *</label>
             <select id="userPerfilSelect" class="form-control" required>
-              <option value="usuario">Usuário</option>
-              <option value="gestor">Gestor</option>
-              <option value="admin">Administrador</option>
+              <option value="usuario">Usuário (Operacional)</option>
+              <option value="coordenador">Coordenador (Gestor da Unidade)</option>
+              <option value="admin">Admin (Acesso Total)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Unidade *</label>
+            <select id="userUnidadeSelect" class="form-control" required>
+              <option value="">Carregando...</option>
             </select>
           </div>
         </form>
@@ -664,70 +548,137 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="modalUnidade">
+  <div class="modal" style="max-width: 640px;">
+    <div class="modal-header">
+      <h3 id="modalUnidadeTitle">Nova Unidade</h3>
+      <button class="modal-close" onclick="closeModal('modalUnidade')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="unidadeId">
+
+      <div class="form-group">
+        <label>Nome da Unidade *</label>
+        <input type="text" id="unidadeNome" class="form-control" placeholder="Ex: UBS Alcinópolis">
+      </div>
+
+      <div class="form-grid form-grid-3">
+        <div class="form-group">
+          <label>Tipo de Logradouro</label>
+          <select id="unidadeTipoLogradouro" class="form-control">
+            <option>Rua</option><option>Avenida</option><option>Travessa</option>
+            <option>Alameda</option><option>Praça</option><option>Rodovia</option>
+            <option>Estrada</option><option>Beco</option><option>Chácara</option>
+            <option>Fazenda</option><option>Sítio</option><option>Largo</option>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column: span 2;">
+          <label>Logradouro (nome)</label>
+          <input type="text" id="unidadeLogradouro" class="form-control" placeholder="Ex: Principal">
+        </div>
+      </div>
+
+      <div class="form-grid form-grid-3">
+        <div class="form-group">
+          <label>Número</label>
+          <input type="text" id="unidadeNumero" class="form-control" placeholder="Ex: 100">
+        </div>
+        <div class="form-group" style="grid-column: span 2;">
+          <label>Bairro</label>
+          <input type="text" id="unidadeBairro" class="form-control" placeholder="Ex: Centro">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Responsável</label>
+        <input type="text" id="unidadeResponsavel" class="form-control" placeholder="Ex: Nicele">
+      </div>
+
+      <div class="form-group">
+        <label>Descrição / Observações</label>
+        <textarea id="unidadeDescricao" class="form-control" rows="2" placeholder="Ex: Unidade Básica de Saúde com farmácia e sala de vacinação"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalUnidade')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUnidade()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+  <div class="modal-overlay" id="modalProdutosFaixa">
+    <div class="modal" style="max-width: 900px;">
+      <div class="modal-header">
+        <h3 id="modalFaixaTitle">Produtos</h3>
+        <button class="modal-close" onclick="closeModal('modalProdutosFaixa')">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="overflow-x: auto;">
+          <table>
+            <thead><tr><th>Produto</th><th>Categoria</th><th>Lote</th><th>Validade</th><th>Dias</th><th>Qtd</th></tr></thead>
+            <tbody id="tabelaProdutosFaixa"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modalProdutosFaixa')">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div id="connectionStatus" style="display: none; position: fixed; top: 0; left: 0; right: 0; background: #ef4444; color: white; text-align: center; padding: 8px; z-index: 9999; font-size: 14px; font-weight: 600;">
+    ⚠️ Você está offline. As alterações serão salvas e sincronizadas quando voltar online.
+  </div>
+    <!-- ==================== MODAL DE DETALHES DE VENCIMENTO ==================== -->
   <div class="modal-overlay" id="modalVencimento">
-    <div class="modal">
+    <div class="modal" style="max-width: 600px;">
       <div class="modal-header">
         <h3>Detalhes do Produto</h3>
         <button class="modal-close" onclick="closeModal('modalVencimento')">×</button>
       </div>
-      <div class="modal-body" id="modalVencimentoBody"></div>
+      <div class="modal-body" id="modalVencimentoBody">
+        <!-- O conteúdo será injetado aqui pelo JavaScript -->
+      </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('modalVencimento')">Fechar</button>
       </div>
     </div>
   </div>
-
-  <!-- Modal Produtos por Faixa -->
-<div class="modal-overlay" id="modalProdutosFaixa">
-  <div class="modal" style="max-width: 900px;">
-    <div class="modal-header">
-      <h3 id="modalFaixaTitle">Produtos</h3>
-      <button class="modal-close" onclick="closeModal('modalProdutosFaixa')">×</button>
-    </div>
-    <div class="modal-body">
-      <div style="overflow-x: auto;">
-        <table>
-          <thead>
-            <tr><th>Produto</th><th>Categoria</th><th>Lote</th><th>Validade</th><th>Dias</th><th>Qtd</th></tr>
-          </thead>
-          <tbody id="tabelaProdutosFaixa"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('modalProdutosFaixa')">Fechar</button>
-    </div>
-  </div>
-</div>
-
-  <div class="toast-container" id="toastContainer"></div>
-
-  <!-- Indicador de Status de Conexão -->
-<div id="connectionStatus" style="display: none; position: fixed; top: 0; left: 0; right: 0; background: #ef4444; color: white; text-align: center; padding: 8px; z-index: 9999; font-size: 14px; font-weight: 600;">
-  ⚠️ Você está offline. As alterações serão salvas e sincronizadas quando voltar online.
-</div>
-
-<script>
-  // Registrar Service Worker
+  <script>
+  // Registrar Service Worker com atualização automática
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('✅ Service Worker registrado'))
-      .catch(err => console.log('❌ Erro no SW:', err));
+      .then(reg => {
+        console.log('✅ PWA Registrado');
+        
+        // Verifica atualizações a cada carregamento
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // Nova versão disponível, recarrega a página
+              if (confirm('Nova versão do sistema disponível. Recarregar?')) {
+                window.location.reload();
+              }
+            }
+          });
+        });
+      })
+      .catch(err => console.log('❌ Erro PWA:', err));
   }
   
   // Controle de conexão
   function updateConnectionStatus() {
-    const status = document.getElementById('connectionStatus');
+    const banner = document.getElementById('offlineBanner');
     if (!navigator.onLine) {
-      status.style.display = 'block';
-      document.body.classList.add('offline');
+      banner.style.display = 'block';
+      document.body.classList.add('offline-mode');
     } else {
-      status.style.display = 'none';
-      document.body.classList.remove('offline');
-      // Sincroniza dados pendentes quando voltar online
-      if (window.sincronizarDadosOffline) {
-        window.sincronizarDadosOffline();
-      }
+      banner.style.display = 'none';
+      document.body.classList.remove('offline-mode');
+      if (window.sincronizarDadosOffline) window.sincronizarDadosOffline();
     }
   }
   
@@ -735,6 +686,7 @@
   window.addEventListener('offline', updateConnectionStatus);
   updateConnectionStatus();
 </script>
+  
   <script src="/js/app.js"></script>
 </body>
 </html>
